@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test apps/api/src/*.test.ts apps/evaluator/src/*.test.ts packages/contracts/src/*.test.ts",
     "build": "npm run typecheck && npm run build --workspace @team-memory/dashboard",
-    "check": "npm run test && npm run build"
+    "check": "npm run test && npm run build",
+    "seed": "npm run seed --workspace @team-memory/api --"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

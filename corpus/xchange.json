@@ -1,0 +1,247 @@
+{
+  "scope": { "teamId": "xchange-team", "projectId": "xchange" },
+  "description": "The team's own project: the real Xchange backlog, decisions and lessons from building it on 26 September 2026. Nothing here is synthetic; evidence points to commits, files and reviews in this repository. Lessons enter as candidates and go through the existing gate, which cannot judge these components yet, so they stay in review.",
+  "tickets": [
+    {
+      "key": "XCH-1",
+      "summary": "Gate publishes lessons that negate a required check",
+      "component": "evaluator",
+      "description": "apps/evaluator/src/compare.ts scores coverage by word presence, so a lesson that says \"Do not inspect event ID deduplication\" covers the check \"Inspect event ID deduplication\" and can publish. Reported as P1 in docs/local-incoming-review.md.",
+      "acceptanceCriteria": [
+        "A lesson that tells agents to skip a required check does not publish.",
+        "A regression test covers negated wording such as \"do not\", \"never\" and \"skip\"."
+      ]
+    },
+    {
+      "key": "XCH-2",
+      "summary": "Compare agent runs with and without a lesson",
+      "component": "evaluator",
+      "description": "The gate reads lesson text; it never runs an agent. Run the held-out tickets with memory off and on, score both runs, and publish only when the target case improves and the negative control does not change. Needs a decision on live model calls and a spend cap.",
+      "acceptanceCriteria": [
+        "Each evaluation stores both runs and their scores in MongoDB.",
+        "The UI-only negative control is part of every comparison."
+      ]
+    },
+    {
+      "key": "XCH-3",
+      "summary": "Cover more components in the held-out suite",
+      "component": "evaluator",
+      "description": "evals/triage-suite.json has two cases and compare.ts maps appliesTo to event-platform or frontend only. Lessons for any other component end as needs-review and can never publish. Held-out cases should be written by someone other than the lesson's author.",
+      "acceptanceCriteria": [
+        "Each component a published lesson may target has at least one held-out case and one negative control.",
+        "The suite version changes whenever cases change, and evaluations record it."
+      ]
+    },
+    {
+      "key": "XCH-4",
+      "summary": "Retrieve lessons for a ticket with Atlas Vector Search",
+      "component": "retrieval",
+      "description": "/v1/memory returns the ten most recently updated published lessons, whatever the ticket. apps/api/src/integrations/vector-search.ts is a stub. Choose an embedding model, create the lessons_vector index with teamId, projectId and status filter fields, and query only within the caller's scope.",
+      "acceptanceCriteria": [
+        "An agent fetching memory for a ticket receives the lessons most relevant to that ticket.",
+        "Retrieval never returns another project's lessons or unpublished candidates."
+      ]
+    },
+    {
+      "key": "XCH-5",
+      "summary": "Tell running agents when a lesson is published",
+      "component": "realtime",
+      "description": "The Pi extension refreshes memory only when a run starts or on /team-memory. Watch published-lesson changes with a Change Stream and fan out scoped invalidations over SSE, storing resume tokens.",
+      "acceptanceCriteria": [
+        "A running agent receives a newly published lesson at its next model-call boundary without restarting.",
+        "When a resume token has expired, the client refetches the full snapshot."
+      ]
+    },
+    {
+      "key": "XCH-6",
+      "summary": "Version harness changes with rollout and rollback",
+      "component": "harness",
+      "description": "Publishing records a lesson but does not activate its instructions, tool presets or verification steps. HarnessVersion exists only as a contract in packages/contracts and harness_versions has no collection.",
+      "acceptanceCriteria": [
+        "Agents report which harness version they ran with.",
+        "Rolling back a version stops agents from receiving its lessons, and the rollback is audited."
+      ]
+    },
+    {
+      "key": "XCH-7",
+      "summary": "Propose candidates from tool results and corrections",
+      "component": "pi-extension",
+      "description": "The Pi extension submits candidates only through /share-lesson. Extract evidence-backed candidates from tool results and engineer corrections (TODO in packages/pi-extension/src/index.ts).",
+      "acceptanceCriteria": [
+        "Each extracted candidate cites the tool result or correction it came from.",
+        "Nothing extracted is published without passing the gate."
+      ]
+    },
+    {
+      "key": "XCH-8",
+      "summary": "Ingest agent change events",
+      "component": "api",
+      "description": "AgentChangeInput is defined in packages/contracts but no /v1/agent-changes route exists (apps/api/src/integrations/agent-changes.ts is a stub). Events need a stable eventId for idempotent retries and a server-assigned engineerId.",
+      "acceptanceCriteria": [
+        "Retrying an event with the same eventId stores it once.",
+        "The engineer on each event comes from the authenticated identity, not the request body."
+      ]
+    },
+    {
+      "key": "XCH-9",
+      "summary": "Deploy the hosted team API and enroll members",
+      "component": "hosting",
+      "description": "d2c1fbc adds the hosted API, individual team grants and secure sessions. The Vercel production project still serves the synthetic preview, its environment variables are empty, and no member grants are configured.",
+      "acceptanceCriteria": [
+        "A teammate on another machine signs in and sees the shared catalog.",
+        "Each member uses an individual grant; no shared token is distributed."
+      ]
+    },
+    {
+      "key": "XCH-10",
+      "summary": "Rate-limit the hosted API",
+      "component": "api",
+      "description": "The sign-in screen handles 429 responses (apps/dashboard/src/auth/session.ts), but the API applies no rate limit, including on /session.",
+      "acceptanceCriteria": [
+        "Repeated failed sign-ins from one client receive 429 responses.",
+        "Normal dashboard and agent traffic is not throttled."
+      ]
+    },
+    {
+      "key": "XCH-11",
+      "summary": "Submit by 5 PM: public repository and one-minute video",
+      "component": "submission",
+      "description": "Event requirements: a public repository checked while signed out, a one-minute demo video, and the event Atlas Sandbox as core application state. Submission closes at 17:00 on 26 September 2026.",
+      "acceptanceCriteria": [
+        "The repository opens while signed out.",
+        "The video link plays while signed out."
+      ]
+    }
+  ],
+  "lessons": [
+    {
+      "key": "replica-set-for-publication",
+      "candidate": {
+        "title": "Publishing needs a MongoDB replica set",
+        "lesson": "Publication writes the lesson, its evaluation and its audit events in one transaction. A standalone mongod rejects transactions and the API reports that as a 503. Use Atlas or a single-node replica set, and connect to a local replica with directConnection=true.",
+        "authorId": "claude-corpus",
+        "appliesTo": ["mongodb", "api"],
+        "evidence": [
+          { "kind": "commit", "reference": "939742a", "summary": "Publish a lesson only after the fixed triage suite passes; publication is transactional." },
+          { "kind": "test", "reference": "apps/api/src/mongo-gate.test.ts", "summary": "Publication test that runs against a replica set through MONGODB_GATE_URI." }
+        ],
+        "proposedChange": {
+          "instructions": ["Run Mongo-backed tests against a replica set, for example MONGODB_GATE_URI='mongodb://127.0.0.1:27419/?directConnection=true'."],
+          "verificationSteps": ["Evaluate a candidate through POST /v1/lessons/:id/evaluate and confirm a 200 response rather than a 503."],
+          "suggestedTools": ["bash"]
+        }
+      }
+    },
+    {
+      "key": "negation-defeats-word-matching",
+      "candidate": {
+        "title": "Word-presence scoring passes negated instructions",
+        "lesson": "The gate counts a required check as covered when its words appear in the lesson, so \"Do not inspect event ID deduplication\" covers \"Inspect event ID deduplication\". Treat a pass from word matching as weak evidence, and test negated wording whenever the scorer changes.",
+        "authorId": "claude-corpus",
+        "appliesTo": ["evaluator"],
+        "evidence": [
+          { "kind": "review", "reference": "docs/local-incoming-review.md", "summary": "P1: negated instructions can still publish." }
+        ],
+        "proposedChange": {
+          "instructions": ["When changing the evaluator, add a negated copy of a passing lesson to the tests."],
+          "verificationSteps": ["Evaluate a passing lesson rewritten with \"Do not\" and confirm it does not publish."],
+          "suggestedTools": ["read", "bash"]
+        }
+      }
+    },
+    {
+      "key": "idempotency-key-on-writes",
+      "candidate": {
+        "title": "Send an Idempotency-Key with every create request",
+        "lesson": "Tickets, activity records, canvases and lesson proposals accept a UUID Idempotency-Key. Reusing the key for an identical retry returns the original record; reusing it for different content is a 409. A lesson proposal sent without a key and then retried creates a duplicate candidate.",
+        "authorId": "claude-corpus",
+        "appliesTo": ["api", "skills", "pi-extension"],
+        "evidence": [
+          { "kind": "commit", "reference": "1e729de", "summary": "Lesson proposals became retry-safe with an Idempotency-Key." },
+          { "kind": "review", "reference": "docs/local-incoming-review.md", "summary": "P2: retried proposals created duplicate candidates." }
+        ],
+        "proposedChange": {
+          "instructions": ["Generate one UUID per logical create and reuse it only when retrying the identical request."],
+          "verificationSteps": ["Repeat a POST with the same key and body and confirm exactly one record exists."],
+          "suggestedTools": ["bash"]
+        }
+      }
+    },
+    {
+      "key": "memory-fetch-is-audited",
+      "candidate": {
+        "title": "Fetching /v1/memory records a consumption event",
+        "lesson": "GET /v1/memory writes a memory.consumed audit event for the caller. Inspection scripts and dashboards should read /v1/lessons instead, so the audit trail shows only agents that actually loaded memory for a run.",
+        "authorId": "claude-corpus",
+        "appliesTo": ["api", "skills"],
+        "evidence": [
+          { "kind": "review", "reference": "apps/api/src/app.ts", "summary": "The /memory route calls recordConsumption before returning lessons." }
+        ],
+        "proposedChange": {
+          "instructions": ["Use GET /v1/lessons for inspection; call /v1/memory only when loading memory into an agent run."],
+          "verificationSteps": ["Run an inspection script and confirm /v1/audit shows no new memory.consumed event."],
+          "suggestedTools": ["read"]
+        }
+      }
+    },
+    {
+      "key": "typecheck-gates-deploy",
+      "candidate": {
+        "title": "A type error anywhere blocks the dashboard deploy",
+        "lesson": "npm run build runs the root typecheck before building the dashboard, so a type error in API or hosted code also stops the Vercel build. On 26 September a Buffer passed to new Response failed typecheck in apps/api/src/hosted.ts until the body became a Uint8Array.",
+        "authorId": "claude-corpus",
+        "appliesTo": ["hosting", "build"],
+        "evidence": [
+          { "kind": "commit", "reference": "d2c1fbc", "summary": "Hosted API adapter; the response body is passed as a Uint8Array." }
+        ],
+        "proposedChange": {
+          "instructions": ["Run npm run typecheck before pushing a change that the Vercel build includes."],
+          "verificationSteps": ["Confirm npm run build completes locally before deploying."],
+          "suggestedTools": ["bash"]
+        }
+      }
+    }
+  ],
+  "activity": [
+    {
+      "key": "decision-separate-demo-world",
+      "actor": "claude-corpus",
+      "record": {
+        "kind": "decision",
+        "title": "Keep the demo world in its own project",
+        "detail": "Owner decision, 26 September 2026: synthetic event-platform records live in xchange-team/event-platform. xchange-team/xchange holds only the team's real backlog, decisions and lessons, so agents building Xchange never load invented lessons. Switch the API between them with PROJECT_ID.",
+        "evidence": [
+          { "reference": "corpus/event-platform.json", "summary": "Synthetic demo corpus for xchange-team/event-platform." },
+          { "reference": "corpus/xchange.json", "summary": "Real team corpus for xchange-team/xchange." }
+        ]
+      }
+    },
+    {
+      "key": "decision-seed-through-gate",
+      "actor": "claude-corpus",
+      "record": {
+        "kind": "decision",
+        "title": "Seeded lessons go through the gate",
+        "detail": "Owner decision, 26 September 2026: the corpus loader submits lessons as candidates through the API and runs the existing gate once. It never writes published status. The fixed suite routes only event-platform and frontend lessons, so real Xchange lessons are expected to stay candidates marked needs-review.",
+        "evidence": [
+          { "reference": "apps/api/src/seed.ts", "summary": "Corpus loader; every write goes through the API routes." }
+        ]
+      }
+    },
+    {
+      "key": "observation-gate-coverage",
+      "actor": "claude-corpus",
+      "record": {
+        "kind": "observation",
+        "title": "The gate cannot judge most real team lessons",
+        "detail": "compare.ts maps appliesTo tokens to event-platform or frontend and the suite has two cases. Lessons about MongoDB, the API, hosting or the evaluator itself return needs-review, so they cannot publish until the suite covers their components (XCH-3).",
+        "subject": { "kind": "activity", "key": "decision-seed-through-gate" },
+        "evidence": [
+          { "reference": "apps/evaluator/src/compare.ts", "summary": "COMPONENT_TOKENS covers event-platform and frontend only." },
+          { "reference": "evals/triage-suite.json", "summary": "Two held-out cases." }
+        ]
+      }
+    }
+  ],
+  "canvases": []
+}

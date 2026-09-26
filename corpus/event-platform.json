@@ -1,0 +1,256 @@
+{
+  "scope": { "teamId": "xchange-team", "projectId": "event-platform" },
+  "description": "Synthetic demo world for the judged demo: a small social product whose event platform fans out push notifications, email digests and an activity feed. Every record is invented and its evidence says so. Engineer A's deduplication lesson is deliberately absent so the demo can propose it live (examples/lesson-candidate.json). The held-out evaluation cases in evals/triage-suite.json are deliberately absent too.",
+  "tickets": [
+    {
+      "key": "DEMO-101",
+      "summary": "One comment sends two push notifications",
+      "component": "notifications",
+      "description": "Since the retry change in the notification consumer, some users receive two identical push notifications for a single comment. The push provider log shows two send calls about 30 seconds apart. Initial triage assigned the ticket to the mobile client team.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "A single comment produces exactly one push notification, including when the consumer retries.",
+        "A test delivers the same event twice and observes one notification."
+      ]
+    },
+    {
+      "key": "DEMO-118",
+      "summary": "Reconnecting shows old likes again in the activity feed",
+      "component": "activity-feed",
+      "description": "After the mobile app reconnects, the activity feed shows entries such as \"Sam liked your post\" again as new items, although they were already in the feed. It happens most after short network drops.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "Reconnecting never adds an entry that is already in the feed.",
+        "The investigation notes say whether the cause is redelivery or rendering."
+      ]
+    },
+    {
+      "key": "DEMO-124",
+      "summary": "Posted comment appears twice until refresh",
+      "component": "frontend",
+      "description": "After posting a comment, the thread shows it twice. Refreshing the page shows it once. Reported on web and mobile web.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "The thread renders each comment once after posting.",
+        "The fix does not change the comments API if its response contains the comment once."
+      ]
+    },
+    {
+      "key": "DEMO-131",
+      "summary": "Older consumers show \"Someone\" instead of the actor's name",
+      "component": "event-sdk",
+      "description": "Producers now emit schema v2 events with actor.displayName. Consumers pinned to SDK 1.4 drop unknown fields and render \"Someone liked your post\".\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "Consumers on SDK 1.x still show the actor's name.",
+        "The SDK changelog states which versions understand schema v2."
+      ]
+    },
+    {
+      "key": "DEMO-137",
+      "summary": "Daily digest arrives at 3 AM for users in India",
+      "component": "email-digest",
+      "description": "Users in Asia/Kolkata receive the daily digest around 03:00 local time. The scheduler computes send times from UTC midnight.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "Digests are sent at 08:00 in the recipient's timezone.",
+        "Users without a stored timezone fall back to their account locale."
+      ]
+    },
+    {
+      "key": "DEMO-142",
+      "summary": "Notifications stall while a large account posts",
+      "component": "notifications",
+      "description": "When an account with about 200,000 followers posts, everyone else's notifications are delayed by up to ten minutes. A single fan-out job holds the queue.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "A large fan-out does not delay other accounts' notifications by more than a minute.",
+        "Queue latency is visible on the notifications dashboard."
+      ]
+    },
+    {
+      "key": "DEMO-149",
+      "summary": "Feed pagination skips items created while scrolling",
+      "component": "activity-feed",
+      "description": "The feed uses offset pagination. When new items arrive while a user scrolls, the next page starts later than it should and some older items are never shown.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "Scrolling through the feed shows every item exactly once, even while new items arrive."
+      ]
+    },
+    {
+      "key": "DEMO-153",
+      "summary": "Mobile session expires during long uploads",
+      "component": "auth",
+      "description": "Uploading a long video can take longer than the 15-minute access token. The upload fails at the end with a 401 and the user has to start again.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "An upload that outlives the access token completes without asking the user to sign in again."
+      ]
+    },
+    {
+      "key": "DEMO-160",
+      "summary": "Search keeps returning deleted posts for an hour",
+      "component": "search",
+      "description": "Deleted posts still appear in search results for up to an hour. The search index is rebuilt hourly and deletes are not applied in between.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "A deleted post disappears from search results within a minute."
+      ]
+    },
+    {
+      "key": "DEMO-166",
+      "summary": "Unread badge shows 9+ after everything is read",
+      "component": "frontend",
+      "description": "After a user reads all notifications on another device, the badge on this device still shows 9+. It clears only after the app restarts.\n\nSynthetic demo-world ticket.",
+      "acceptanceCriteria": [
+        "Reading notifications on one device clears the badge on the others within a few seconds."
+      ]
+    }
+  ],
+  "lessons": [
+    {
+      "key": "compare-api-with-rendered-state",
+      "candidate": {
+        "title": "Compare the API response with the rendered UI before blaming the event pipeline",
+        "lesson": "When a screen shows an item twice, first compare the API response with the rendered UI state. If the response contains the item once, the duplicate comes from client state, for example an optimistic insert followed by the server's echo, and the event pipeline is not involved. Route those tickets to the frontend.",
+        "authorId": "engineer-c",
+        "appliesTo": ["frontend"],
+        "evidence": [
+          { "kind": "ticket", "reference": "DEMO-124", "summary": "Synthetic: the thread API returned the comment once; the client rendered it twice after an optimistic insert and the websocket echo." }
+        ],
+        "proposedChange": {
+          "instructions": ["For a duplicate or stale item on screen, capture the API response for that view and compare it with the rendered UI state before routing the ticket to a backend team."],
+          "verificationSteps": ["Reproduce with the network panel open and record whether the API response itself contains the duplicate."],
+          "suggestedTools": ["read", "bash"]
+        }
+      }
+    },
+    {
+      "key": "all-duplicates-are-redelivery",
+      "candidate": {
+        "title": "Treat every duplicate as an event redelivery",
+        "lesson": "Duplicates in notifications, the activity feed or the UI all come from consumers processing the same event twice. Start every duplicate investigation in the event consumer.",
+        "authorId": "engineer-b",
+        "appliesTo": ["notifications", "activity-feed", "frontend"],
+        "evidence": [
+          { "kind": "ticket", "reference": "DEMO-101", "summary": "Synthetic: generalized from the duplicate push notification investigation." }
+        ],
+        "proposedChange": {
+          "instructions": ["Route every ticket that mentions a duplicate to the event consumer owners."],
+          "verificationSteps": ["Replay the same event twice and check deduplication by event ID."],
+          "suggestedTools": ["read", "bash"]
+        }
+      }
+    },
+    {
+      "key": "dual-emit-schema-changes",
+      "candidate": {
+        "title": "Emit both schema versions while consumers upgrade",
+        "lesson": "Consumers pinned to an older SDK drop fields they do not know. When a producer changes an event schema, emit the old and new versions side by side until every consumer reports the new SDK version, and only then remove the old one.",
+        "authorId": "engineer-a",
+        "appliesTo": ["event-sdk"],
+        "evidence": [
+          { "kind": "ticket", "reference": "DEMO-131", "summary": "Synthetic: SDK 1.4 consumers rendered \"Someone\" because they dropped actor.displayName." }
+        ],
+        "proposedChange": {
+          "instructions": ["Before changing an event schema, list consumer SDK versions and plan a dual-emit period."],
+          "verificationSteps": ["Deliver a v2 event to a consumer on the oldest supported SDK and confirm it still shows the actor's name."],
+          "suggestedTools": ["read"]
+        }
+      }
+    },
+    {
+      "key": "digest-recipient-timezone",
+      "candidate": {
+        "title": "Schedule digests in the recipient's timezone",
+        "lesson": "Daily digests were scheduled from UTC midnight, so users east of UTC received them at night. Compute the send time from the recipient's stored timezone, and fall back to the account locale only when no timezone is stored.",
+        "authorId": "engineer-b",
+        "appliesTo": ["email-digest"],
+        "evidence": [
+          { "kind": "ticket", "reference": "DEMO-137", "summary": "Synthetic: digests arrived around 03:00 local time for users in Asia/Kolkata." }
+        ],
+        "proposedChange": {
+          "instructions": ["Compute scheduled send times from the recipient's timezone, not the server clock."],
+          "verificationSteps": ["Schedule a digest for a user in Asia/Kolkata and check that it is sent at 08:00 local time."],
+          "suggestedTools": ["read", "bash"]
+        }
+      }
+    },
+    {
+      "key": "batch-large-fanouts",
+      "evaluate": false,
+      "candidate": {
+        "title": "Split large notification fan-outs into bounded batches",
+        "lesson": "One post from an account with about 200,000 followers produced a single fan-out job that held the notification queue for about ten minutes. Split fan-outs into batches of at most 1,000 recipients so other accounts' notifications interleave with them.",
+        "authorId": "engineer-a",
+        "appliesTo": ["notifications"],
+        "evidence": [
+          { "kind": "ticket", "reference": "DEMO-142", "summary": "Synthetic: queue latency rose to about ten minutes during one large account's post." }
+        ],
+        "proposedChange": {
+          "instructions": ["When a fan-out exceeds 1,000 recipients, enqueue it as separate batches."],
+          "verificationSteps": ["Enqueue a 200,000-recipient fan-out and one normal notification; the normal one is delivered within a minute."],
+          "suggestedTools": ["read", "bash"]
+        }
+      }
+    }
+  ],
+  "activity": [
+    {
+      "key": "a-101-observation",
+      "actor": "engineer-a",
+      "record": {
+        "kind": "observation",
+        "title": "Two push sends share one event ID",
+        "detail": "DEMO-101: the push provider log shows two send calls 31 seconds apart with the same event ID. The notification consumer retried after a timeout although the first send had succeeded.",
+        "evidence": [{ "reference": "DEMO-101", "summary": "Synthetic: provider log excerpt attached to the ticket." }]
+      }
+    },
+    {
+      "key": "a-101-decision",
+      "actor": "engineer-a",
+      "record": {
+        "kind": "decision",
+        "title": "Reassign DEMO-101 to the notification consumer",
+        "detail": "The duplicate happens before the mobile client receives anything: the consumer handles the same event twice. Moving DEMO-101 from mobile to notifications. Next step: a test that delivers one event twice.",
+        "subject": { "kind": "activity", "key": "a-101-observation" },
+        "evidence": [{ "reference": "DEMO-101", "summary": "Synthetic: reassignment recorded on the ticket." }]
+      }
+    },
+    {
+      "key": "c-124-observation",
+      "actor": "engineer-c",
+      "record": {
+        "kind": "observation",
+        "title": "The thread API returns the new comment once",
+        "detail": "DEMO-124: the POST response and the following GET each contain the new comment once. The second copy appears when the websocket echo arrives after the optimistic insert.",
+        "evidence": [{ "reference": "DEMO-124", "summary": "Synthetic: network panel capture attached to the ticket." }]
+      }
+    },
+    {
+      "key": "b-118-observation",
+      "actor": "engineer-b",
+      "record": {
+        "kind": "observation",
+        "title": "Feed worker resumes from the last committed offset",
+        "detail": "DEMO-118: on reconnect the feed worker resumes from the last committed offset. Offsets are committed every 30 seconds, so up to 30 seconds of events can be delivered to it again.",
+        "evidence": [{ "reference": "DEMO-118", "summary": "Synthetic: worker log excerpt attached to the ticket." }]
+      }
+    }
+  ],
+  "canvases": [
+    {
+      "key": "duplicate-effects-map",
+      "editor": "engineer-a",
+      "canvas": {
+        "title": "Duplicate effects",
+        "description": "Synthetic demo world. Lines are proposed relationships, not evidence.",
+        "nodes": [
+          { "id": "guide", "kind": "note", "title": "How to read this map", "text": "Tickets and lessons are catalog records. Notes are explanations. A line is a proposed relationship until a test or an evaluation supports it.", "x": 0, "y": 0, "color": "neutral" },
+          { "id": "t101", "kind": "record", "ref": { "kind": "ticket", "key": "DEMO-101" }, "x": 0, "y": 220, "color": "blue" },
+          { "id": "t118", "kind": "record", "ref": { "kind": "ticket", "key": "DEMO-118" }, "x": 320, "y": 220, "color": "blue" },
+          { "id": "t124", "kind": "record", "ref": { "kind": "ticket", "key": "DEMO-124" }, "x": 640, "y": 220, "color": "blue" },
+          { "id": "redelivery", "kind": "note", "title": "Same event processed twice?", "text": "DEMO-101 and DEMO-118 may share a cause: a consumer handling a redelivered event. Unconfirmed until a replay test passes.", "x": 160, "y": 460, "color": "amber" },
+          { "id": "frontend-lesson", "kind": "record", "ref": { "kind": "lesson", "key": "compare-api-with-rendered-state" }, "x": 640, "y": 460, "color": "sage" }
+        ],
+        "edges": [
+          { "id": "e1", "from": "t101", "to": "redelivery", "label": "suggests" },
+          { "id": "e2", "from": "t118", "to": "redelivery", "label": "may share cause" },
+          { "id": "e3", "from": "t124", "to": "frontend-lesson", "label": "source of" }
+        ]
+      }
+    }
+  ]
+}
