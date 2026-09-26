@@ -1,5 +1,4 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import triageSuite from "../../../evals/triage-suite.json" with { type: "json" };
 import { z } from "zod";
 import type { EvaluationCaseResult, EvaluationScores, Lesson } from "@team-memory/contracts";
 
@@ -68,8 +67,7 @@ let cachedSuite: TriageSuite | null = null;
 
 export function loadSuite(): TriageSuite {
   if (cachedSuite) return cachedSuite;
-  const suitePath = fileURLToPath(new URL("../../../evals/triage-suite.json", import.meta.url));
-  const parsed = SuiteSchema.safeParse(JSON.parse(readFileSync(suitePath, "utf8")));
+  const parsed = SuiteSchema.safeParse(triageSuite);
   if (!parsed.success) throw new Error("evals/triage-suite.json does not match the evaluator schema");
   cachedSuite = parsed.data;
   return cachedSuite;

@@ -7,6 +7,7 @@ import {
 } from "@team-memory/contracts";
 import { EVALUATOR_VERSION, compareLesson, loadSuite } from "@team-memory/evaluator";
 import { RepositoryError, type LessonRepository } from "./repository.js";
+import { createTeamAuthentication, type TeamAuthConfig } from "./auth.js";
 
 export interface AppOptions {
   repository: LessonRepository;
@@ -15,6 +16,7 @@ export interface AppOptions {
   activity?: ActivityRepository;
   storageLabel?: string;
   token: string;
+  teamAuth?: TeamAuthConfig;
   scope: Scope;
   storage: "memory" | "mongodb";
   logger?: boolean;
@@ -40,6 +42,10 @@ export function buildApp(options: AppOptions) {
   if (options.storage === "mongodb" && !options.activity) throw new Error("MongoDB mode requires a persistent activity repository.");
   const activity = options.activity ?? new InMemoryActivityRepository();
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 64 * 1024 });
+  const teamAuth = options.teamAuth ? createTeamAuthentication(options.teamAuth) : null;
+  app.addHook("onRequest", async (_request, reply) => { reply.header("cache-control", "no-store"); });
+  if (teamAuth) teamAuth.registerSessions(app);
+  else app.get("/session", async () => ({ authenticated: true, mode: "local" }));
   app.setErrorHandler((error, _req, reply) => {
     const code = error instanceof Error && "statusCode" in error ? error.statusCode : undefined;
     const status = typeof code === "number" && code >= 400 && code < 500 ? code : 503;
@@ -54,6 +60,17 @@ export function buildApp(options: AppOptions) {
 
   app.register(async (api) => {
     api.addHook("onRequest", async (request, reply) => {
+      if (teamAuth) {
+        const principal = teamAuth.authenticate(request);
+        if (!principal) return reply.code(401).send({ error: "Sign in with a valid team access token." });
+        if (principal.via === "cookie" && !["GET", "HEAD", "OPTIONS"].includes(request.method) && !teamAuth.sameOrigin(request)) {
+          return reply.code(403).send({ error: "State-changing requests must originate from this application." });
+        }
+        const evaluatorOnly = request.method === "POST" && request.routeOptions.url === "/v1/lessons/:id/evaluate";
+        if (!teamAuth.permits(principal, request.method, evaluatorOnly)) return reply.code(403).send({ error: "This team credential does not permit that operation." });
+        request.headers[ENGINEER_ID_HEADER] = principal.actorId;
+        return;
+      }
       if (request.headers.authorization !== `Bearer ${options.token}`) {
         return reply.code(401).send({ error: "Unauthorized" });
       }
@@ -97,7 +114,7 @@ export function buildApp(options: AppOptions) {
       if (!parsed.success) {
         return reply.code(400).send({ error: "Invalid lesson candidate", issues: parsed.error.issues });
       }
-      const lesson = await options.repository.propose(options.scope, parsed.data);
+      const lesson = await options.repository.propose(options.scope, teamAuth ? { ...parsed.data, authorId: engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]) } : parsed.data);
       return reply.code(201).send(lesson);
     });
 

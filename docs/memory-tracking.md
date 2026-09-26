@@ -37,7 +37,9 @@ Use the [portable team-memory skill](../skills/team-memory/SKILL.md) to access t
 API. The server owns MongoDB credentials and derives the configured team/project.
 Agents must not receive arbitrary database-query tools or select a scope in write
 payloads. The local starter's shared token is not per-user authentication;
-`x-engineer-id` is explicitly a reporter label, not a trusted human/agent identity.
+In local owner mode, `x-engineer-id` is a self-reported label. Hosted team mode
+overrides it with the authenticated grant's actor ID; previous/local records keep
+their original labels. See [hosted access and verification](frontend-sharing.md).
 
 At task start, retrieve current published lessons. Check their source, applicability
 and code revision before using them. Record the lesson ID/version and the concrete

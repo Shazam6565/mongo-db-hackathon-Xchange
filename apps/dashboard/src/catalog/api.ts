@@ -2,6 +2,7 @@ import { ActivityPageSchema } from "../../../../packages/contracts/src/activity.
 import { LessonSchema, ScopeSchema } from "@team-memory/contracts";
 import { TicketRecordSchema, type TicketInput } from "../../../../packages/contracts/src/tickets.js";
 import { z } from "zod";
+import { AUTH_EXPIRED_EVENT } from "../auth/session.js";
 
 export const LessonsResponse = z.object({ scope: ScopeSchema, lessons: z.array(LessonSchema) });
 export const TicketsResponse = z.object({ scope: ScopeSchema, tickets: z.array(TicketRecordSchema) });
@@ -10,8 +11,12 @@ export async function request(path: string, init: RequestInit = {}) {
   const signal = init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000);
   const response = await fetch(`/api${path}`, { ...init, signal });
   if (!response.ok) {
+    if (response.status === 401) {
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+      throw new Error("Your session expired. Sign in again.");
+    }
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error ?? `Request failed (${response.status}). Check the local API and try again.`);
+    throw new Error(body?.error ?? `Request failed (${response.status}). Check the API and try again.`);
   }
   return response.json();
 }

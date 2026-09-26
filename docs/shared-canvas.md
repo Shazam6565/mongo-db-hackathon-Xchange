@@ -27,7 +27,7 @@ node --env-file=.env skills/team-memory/scripts/client.mjs canvas CANVAS_UUID
 node --env-file=.env skills/team-memory/scripts/client.mjs write-canvas CANVAS_UUID ./drawing.json OPERATION_UUID
 ```
 
-For another agent environment provide only `TEAM_API_URL`, `TEAM_API_TOKEN` and an optional self-reported `ENGINEER_ID`. Do not distribute `MONGODB_URI`. The current owner API binds to loopback; remote team use needs a separately hosted authenticated API. Publishing the static preview does not provide that API. A fetched lesson is not evidence of use or improved performance; track those separately.
+For another agent environment provide only `TEAM_API_URL` and that agent's individual `TEAM_API_TOKEN`. Do not distribute `MONGODB_URI`. Local owner mode accepts an optional self-reported `ENGINEER_ID`; hosted mode derives identity from the configured grant and overrides that label. The owner API binds to loopback; the new Vercel server entry supports remote authentication but still needs deployment verification and member enrollment. See [live hosting](frontend-sharing.md). Publishing the synthetic preview does not provide that API. A fetched lesson is not evidence of use or improved performance; track those separately.
 
 ## Database configuration
 

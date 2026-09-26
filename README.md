@@ -30,7 +30,8 @@ This is a **runnable skeleton, not the finished learning system**.
 | Harness configuration rollout, rollback, and audit history | Contract/design only |
 | Semantic retrieval / embedding generation / Atlas Vector Search | Adapter interface only |
 | Live synchronization through Change Streams and SSE | Design only; refresh is currently per run/manual |
-| Per-user authentication, membership, and remote deployment | Planned; current services bind to loopback |
+| Individual team grants, roles and browser sessions | Implemented with local security checks; real member enrollment pending |
+| Vercel live UI and server API | Deployment configuration implemented; remote deployment and Atlas route unverified |
 
 No LLM calls or paid cloud resources are created by `npm run dev` or `npm run evaluate`. The single published lesson
 in memory mode is synthetic demo data, explicitly marked `origin: demo`. Submitting a lesson
@@ -115,8 +116,9 @@ the outgoing context. It does not change the model's weights or automatically ex
 For two independent agents, start Pi in separate checkouts, use different `ENGINEER_ID` values,
 and load this extension by its absolute path. Both use the same API and scope. Separate checkout
 files and conversations remain local; shared memory is a generated view of backend records.
-The current local-only server is for a single-machine two-session demo. Actual remote engineers
-need a reachable authenticated HTTPS API with team membership checks.
+The loopback server is for a single-machine demo. The Vercel entry supports individually
+issued team credentials and browser sessions; deployment and real teammate enrollment
+still require verification. See [live hosting and access](docs/frontend-sharing.md).
 
 ## Frontend integration
 
@@ -165,9 +167,11 @@ infra/
 
 ## API surface
 
-All `/v1` endpoints require `Authorization: Bearer <TEAM_API_TOKEN>`. One configured token maps
-to one configured team/project in this local starter. `authorId` is a self-reported demo label,
-not an authenticated identity. The API assigns scope and initial candidate status itself.
+Locally, `/v1` endpoints require `Authorization: Bearer <TEAM_API_TOKEN>` and labels are
+self-reported. Hosted mode instead requires an individual member bearer token or a signed
+browser session. It derives actor identity and reader/writer/evaluator authority from
+server-configured grants. Both modes assign team/project scope and candidate status on
+the server. Hosted `/session` supports GET (status), POST (sign in), DELETE (sign out).
 
 | Method | Route | Behavior |
 | --- | --- | --- |
@@ -222,7 +226,7 @@ proof that a lesson passed evaluation.
 3. Add Atlas Vector Search and context budgets with component/version applicability checks.
 4. Add versioned harness updates, rollback, and consumption logs.
 5. Add Change Stream/SSE invalidations and reconnection handling.
-6. Add per-user auth, then connect two machines and integrate ticket-linked agent observations.
+6. Deploy the implemented team auth, connect two machines and integrate ticket-linked agent observations.
 
 Keep an end-to-end two-ticket demonstration working as each layer is added. See [demo plan](docs/demo.md).
 

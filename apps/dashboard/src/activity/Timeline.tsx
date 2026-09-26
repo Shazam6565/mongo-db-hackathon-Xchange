@@ -7,6 +7,7 @@ import { errorMessage, HealthResponse, request } from "../catalog/api.js";
 import { label } from "../catalog/model.js";
 import { AddActivity } from "./AddActivity.js";
 import { OutcomeEvidence } from "./ActivityHistory.js";
+import { useSession } from "../auth/SessionContext.js";
 import "../catalog/catalog.css";
 import "./activity.css";
 
@@ -22,6 +23,7 @@ function dateFilter(value: string | null): string {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : "";
 }
 export function Timeline() {
+  const session = useSession();
   const initial = new URLSearchParams(window.location.search);
   const [source, setSource] = useState(initial.get("source") === "memory" ? "memory" : "records");
   const [kind, setKind] = useState(ActivityKindSchema.safeParse(initial.get("kind")).success ? initial.get("kind")! : "");
@@ -85,7 +87,7 @@ export function Timeline() {
       </div>
       <div className="timeline-content">
         {rootId && <p className="timeline-caption">History for {rootKind} {rootId} · <a href="/?view=timeline">Show all records</a></p>}
-        <p className="timeline-caption">{source === "records" ? "Recorded chronology. Applications describe changed actions; outcomes retain comparisons and uncertainty. Labels identify reporters, not authenticated people." : "Latest 100 lifecycle events. A retrieval means context was fetched, not used or proven helpful. Date filters apply to this recent window."}</p>
+        <p className="timeline-caption">{source === "records" ? <>Recorded chronology. Applications describe changed actions; outcomes retain comparisons and uncertainty. {session.mode === "team" ? "New team records use authenticated member IDs; earlier local records may retain self-reported labels." : "Local reporter labels are self-reported, not authenticated identities."}</> : "Latest 100 lifecycle events. A retrieval means context was fetched, not used or proven helpful. Date filters apply to this recent window."}</p>
         {error ? <p role="alert" className="error-message">{error} <button onClick={() => void load()}>Retry</button></p> : source === "records" ? <ol className="timeline-list">{records.map(record => <li key={record.id}>
           <time dateTime={record.recordedAt}>{new Date(record.recordedAt).toLocaleString()}</time><div className="timeline-entry">
             <div className="history-meta"><span>{label(record.kind)}{corrected.has(record.id) ? " · correction recorded" : ""}</span><span>Label: {record.actorLabel}</span>{record.runId && <span>Task/run: {record.runId}</span>}</div>

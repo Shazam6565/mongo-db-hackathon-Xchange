@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ActivityInputSchema, ActivityRecordSchema, type ActivityInput, type ActivityRecord, type ActivitySubject } from "../../../../packages/contracts/src/activity.js";
 import { errorMessage, request } from "../catalog/api.js";
+import { useSession } from "../auth/SessionContext.js";
 import "./activity.css";
 
 export function AddActivity({ onClose, onSaved, subject, defaultKind = "observation", runId }: {
   onClose: () => void; onSaved: (record: ActivityRecord) => void; subject?: ActivitySubject; defaultKind?: ActivityInput["kind"]; runId?: string;
 }) {
+  const session = useSession();
   const dialog = useRef<HTMLDialogElement>(null), operation = useRef(crypto.randomUUID());
   const [kind, setKind] = useState(defaultKind), [saving, setSaving] = useState(false), [error, setError] = useState("");
   useEffect(() => {
@@ -28,7 +30,8 @@ export function AddActivity({ onClose, onSaved, subject, defaultKind = "observat
     setSaving(true); setError("");
     try {
       const record = ActivityRecordSchema.parse(await request("/v1/activity", { method: "POST", headers: {
-        "content-type": "application/json", "idempotency-key": operation.current, "x-engineer-id": value("actor") || "local-ui",
+        "content-type": "application/json", "idempotency-key": operation.current,
+        ...(session.mode === "local" ? { "x-engineer-id": value("actor") || "local-ui" } : {}),
       }, body: JSON.stringify(parsed.data) }));
       onSaved(record);
     } catch (failure) { setError(errorMessage(failure)); setSaving(false); }
@@ -41,7 +44,7 @@ export function AddActivity({ onClose, onSaved, subject, defaultKind = "observat
         <label>Name <input name="title" required maxLength={80} placeholder="A short, identifying name" /></label>
         <label>{kind === "application" ? "What action changed?" : kind === "correction" ? "What needs correcting?" : "What happened or was decided?"}<textarea name="detail" required maxLength={4000} rows={3} /></label>
         {(kind === "application" || kind === "outcome") && <label>Task / run reference <input name="runId" required maxLength={100} defaultValue={runId} readOnly={Boolean(runId)} placeholder="A stable reference to this task or run" /></label>}
-        <div className="form-row"><label>Evidence reference <input name="reference" required maxLength={500} placeholder="Test, commit, ticket or owner direction" /></label><label>Recorded by <input name="actor" maxLength={100} pattern="[\w.\-]+" placeholder="local-ui" /></label></div>
+        <div className="form-row"><label>Evidence reference <input name="reference" required maxLength={500} placeholder="Test, commit, ticket or owner direction" /></label><label>Recorded by {session.mode === "team" ? <input value={session.actorId} readOnly /> : <input name="actor" maxLength={100} pattern="[\w.\-]+" placeholder="local-ui" />}</label></div>
         <label>What does that evidence establish? <textarea name="evidence" required maxLength={1000} rows={2} /></label>
         {kind === "outcome" && <>
           <label>Reported result <select name="assessment" defaultValue="inconclusive"><option value="inconclusive">Inconclusive</option><option value="helped">Helped</option><option value="no_change">No change</option><option value="regressed">Regressed</option></select></label>
@@ -50,7 +53,7 @@ export function AddActivity({ onClose, onSaved, subject, defaultKind = "observat
         </>}
       </fieldset>
       {error && <p role="alert" className="error-message">{error}</p>}
-      <p className="muted form-note">This adds a sourced report to Catalog and Timeline. It does not publish a lesson or grant approval. “Recorded by” is a self-reported label in this local app.</p>
+      <p className="muted form-note">This adds a sourced report to Catalog and Timeline. It does not publish a lesson or grant approval. {session.mode === "team" ? "“Recorded by” uses your authenticated team identity." : "“Recorded by” is a self-reported label in this local app."}</p>
       <div className="dialog-actions"><button type="button" onClick={onClose} disabled={saving}>Cancel</button><button className="primary" disabled={saving}>{saving ? "Saving…" : "Save record"}</button></div>
     </form>
   </dialog>;
