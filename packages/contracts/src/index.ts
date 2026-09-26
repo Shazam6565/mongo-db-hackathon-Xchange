@@ -27,6 +27,12 @@ export const CandidateInputSchema = z.object({
   proposedChange: HarnessChangeSchema,
 }).strict();
 
+// Body of POST /v1/lessons/share. replaces lists lessons this one corrects; they become
+// superseded and leave the active harness version in the same commit.
+export const ShareLessonInputSchema = CandidateInputSchema.extend({
+  replaces: z.array(z.string().min(1).max(100)).max(10).default([]),
+}).strict();
+
 export const LessonSchema = CandidateInputSchema.extend({
   id: z.string(),
   teamId: z.string(),
@@ -105,6 +111,7 @@ export function engineerIdFromHeader(value: string | string[] | undefined): stri
 export type Scope = z.infer<typeof ScopeSchema>;
 export type CandidateInput = z.infer<typeof CandidateInputSchema>;
 export type Lesson = z.infer<typeof LessonSchema>;
+export type ShareLessonInput = z.infer<typeof ShareLessonInputSchema>;
 export type MemorySnapshot = z.infer<typeof MemorySnapshotSchema>;
 export type Retrieval = z.infer<typeof RetrievalSchema>;
 export type MemorySearchRequest = z.infer<typeof MemorySearchRequestSchema>;
@@ -204,6 +211,7 @@ export function renderMemory(snapshot: MemorySnapshot): string {
     lines.push("> Order: most recently published first");
   }
   if (retrieval?.note) lines.push(`> Note: ${retrieval.note}`);
+  lines.push("> If two lessons conflict, trust the one shared most recently.");
   lines.push("");
   const scores = new Map(retrieval?.scores.map((item) => [item.id, item.score]) ?? []);
   const published = snapshot.lessons.filter((lesson) => lesson.status === "published");
@@ -213,11 +221,12 @@ export function renderMemory(snapshot: MemorySnapshot): string {
     lines.push(
       `## ${lesson.title}`,
       "",
-      `ID: ${lesson.id} · version ${lesson.version} · origin: ${lesson.origin}${score === undefined ? "" : ` · relevance ${score.toFixed(3)}`}`,
+      `ID: ${lesson.id} · version ${lesson.version} · origin: ${lesson.origin} · shared ${lesson.createdAt}${score === undefined ? "" : ` · relevance ${score.toFixed(3)}`}`,
       `Applies to: ${lesson.appliesTo.join(", ") || "project-wide"}`,
       "",
       lesson.lesson,
       "",
+      ...lesson.proposedChange.verificationSteps.map((step) => `- Verify: ${step}`),
       ...lesson.evidence.map((e) => `- Evidence (${e.kind}): ${e.reference} — ${e.summary}`),
       "",
     );

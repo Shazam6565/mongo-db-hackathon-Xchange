@@ -5,7 +5,7 @@ import { InMemoryCanvasRepository, registerCanvases, type CanvasRepository } fro
 import { registerGitHistory } from "./git-history.js";
 import { InMemoryTicketRepository, registerTickets, type TicketRepository } from "./tickets.js";
 import {
-  CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, MemorySearchRequestSchema, composeMemoryQuery, engineerIdFromHeader,
+  CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, MemorySearchRequestSchema, ShareLessonInputSchema, composeMemoryQuery, engineerIdFromHeader,
   type Lesson, type Retrieval, type Scope, type Ticket as TicketRecord,
 } from "../../../packages/contracts/src/index.js";
 import { EVALUATOR_VERSION, compareLesson, loadSuite } from "../../evaluator/src/compare.js";
@@ -224,9 +224,10 @@ export function buildApp(options: AppOptions) {
 
     // /lessons stores a candidate for the evaluation gate. /lessons/share publishes at once:
     // agents share what they learn automatically, and every agent receives it on its next message.
-    for (const [url, write] of [["/lessons", "propose"], ["/lessons/share", "share"]] as const) {
+    for (const url of ["/lessons", "/lessons/share"] as const) {
       api.post(url, async (request, reply) => {
-        const parsed = CandidateInputSchema.safeParse(request.body);
+        const sharing = url === "/lessons/share";
+        const parsed = (sharing ? ShareLessonInputSchema : CandidateInputSchema).safeParse(request.body);
         if (!parsed.success) {
           return reply.code(400).send({ error: "Invalid lesson candidate", issues: parsed.error.issues });
         }
@@ -235,8 +236,12 @@ export function buildApp(options: AppOptions) {
         const operation = key === undefined ? undefined : z.string().uuid().safeParse(key);
         if (operation && !operation.success) return reply.code(400).send({ error: "Idempotency-Key must be a UUID." });
         try {
-          const input = teamAuth ? { ...parsed.data, authorId: engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]) } : parsed.data;
-          return reply.code(201).send(await options.repository[write](options.scope, input, operation?.data));
+          const { replaces = [], ...candidate } = parsed.data as z.infer<typeof ShareLessonInputSchema>;
+          const input = teamAuth ? { ...candidate, authorId: engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]) } : candidate;
+          const lesson = sharing
+            ? await options.repository.share(options.scope, input, operation?.data, replaces)
+            : await options.repository.propose(options.scope, input, operation?.data);
+          return reply.code(201).send(lesson);
         } catch (error) {
           if (sendRepositoryError(error, reply)) return;
           throw error;

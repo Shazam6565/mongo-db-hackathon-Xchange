@@ -42,7 +42,8 @@ export interface LessonRepository {
   propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson>;
   // Publishes at once, without the evaluation gate, and appends a harness version that adds the
   // lesson in the same commit, so every agent loads it on its next message.
-  share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson>;
+  // replaces: published lessons this one corrects. They become superseded and leave memory.
+  share(scope: Scope, input: CandidateInput, id?: string, replaces?: string[]): Promise<Lesson>;
   // A publish decision also appends a harness version that adds the lesson, in the same commit.
   commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores): Promise<EvaluationCommit>;
   recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string, harnessVersion?: number): Promise<void>;
@@ -123,13 +124,23 @@ function proposalEvent(lesson: Lesson): AuditEvent {
 }
 
 // A lesson shared by an agent is published immediately, without the evaluation gate.
-function sharedEvent(lesson: Lesson): AuditEvent {
+function sharedEvent(lesson: Lesson, replaces: string[] = []): AuditEvent {
   const scope = { teamId: lesson.teamId, projectId: lesson.projectId };
+  const superseded = replaces.length ? `; supersedes ${replaces.join(", ")}` : "";
   return {
-    ...auditEvent(scope, "lesson.published", lesson.id, lesson.version, lesson.authorId, lesson.createdAt, `Shared ${lesson.title} without evaluation`),
+    ...auditEvent(scope, "lesson.published", lesson.id, lesson.version, lesson.authorId, lesson.createdAt, `Shared ${lesson.title} without evaluation${superseded}`),
     id: stableUuid("lesson.shared", lesson.id, String(lesson.version)),
   };
 }
+
+// Only published lessons in the same project can be replaced; a wrong ID aborts the share.
+function requireReplaceable(requested: string[], found: string[]): void {
+  const missing = requested.filter((id) => !found.includes(id));
+  if (missing.length) throw new RepositoryError(`Cannot replace ${missing.join(", ")}: not a published lesson in this project.`, 400);
+}
+
+const withoutReplaced = (version: HarnessVersionRecord, replaces: string[]): HarnessVersionRecord =>
+  replaces.length ? { ...version, lessons: version.lessons.filter((ref) => !replaces.includes(ref.id)) } : version;
 
 function evaluationEvents(scope: Scope, lesson: Lesson, scores: EvaluationScores, at: string, status: Lesson["status"] | null): AuditEvent[] {
   const events = [auditEvent(
@@ -248,15 +259,18 @@ export class InMemoryLessonRepository implements LessonRepository {
     return structuredClone(candidate);
   }
 
-  async share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
+  async share(scope: Scope, input: CandidateInput, id?: string, replaces: string[] = []): Promise<Lesson> {
     const existing = id ? this.lessons.find((item) => item.id === id) : undefined;
     if (existing) return structuredClone(sameProposal(existing, scope, input));
     const lesson: Lesson = { ...makeCandidate(scope, input, id), status: "published" };
+    const replaced = this.inScope(scope).filter((item) => replaces.includes(item.id) && item.status === "published");
+    requireReplaceable(replaces, replaced.map((item) => item.id));
     const latest = this.latestHarness(scope);
     // Built before any write, so an oversized harness leaves nothing half-shared.
-    const harness = nextHarnessVersion(scope, latest, this.activeRefs(scope, latest), "publish", refOf(lesson), lesson.authorId, lesson.createdAt);
+    const harness = withoutReplaced(nextHarnessVersion(scope, latest, this.activeRefs(scope, latest), "publish", refOf(lesson), lesson.authorId, lesson.createdAt), replaces);
+    for (const item of replaced) Object.assign(item, { status: "superseded", updatedAt: lesson.createdAt });
     this.lessons.push(lesson);
-    this.audit.push(proposalEvent(lesson), sharedEvent(lesson));
+    this.audit.push(proposalEvent(lesson), sharedEvent(lesson, replaces));
     this.harness.push(harness);
     this.audit.push(harnessEvent(harness, lesson, lesson.version));
     return structuredClone(lesson);
@@ -465,7 +479,7 @@ export class MongoLessonRepository implements LessonRepository {
   }
 
   // The lesson, its audit events and the harness version that adds it commit together.
-  async share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
+  async share(scope: Scope, input: CandidateInput, id?: string, replaces: string[] = []): Promise<Lesson> {
     const lesson: Lesson = { ...makeCandidate(scope, input, id), status: "published" };
     const session = this.client.startSession();
     try {
@@ -474,10 +488,19 @@ export class MongoLessonRepository implements LessonRepository {
         const existing = await this.lessons.findOne({ id: lesson.id }, { session, projection: lessonFields });
         // An identical retry returns the first result; different content under the same key is a 409.
         if (existing) { stored = sameProposal(existing, scope, input); return; }
+        const replaced = replaces.length === 0 ? [] : await this.lessons.find(
+          { ...scope, id: { $in: replaces }, status: "published" }, { session, projection: { _id: 0, id: 1 } },
+        ).toArray();
+        requireReplaceable(replaces, replaced.map((item) => item.id));
         const latest = await this.latestHarness(scope, session);
-        const harness = nextHarnessVersion(scope, latest, await this.activeRefs(scope, latest, session), "publish", refOf(lesson), lesson.authorId, lesson.createdAt);
+        const harness = withoutReplaced(nextHarnessVersion(scope, latest, await this.activeRefs(scope, latest, session), "publish", refOf(lesson), lesson.authorId, lesson.createdAt), replaces);
+        if (replaces.length) {
+          // Superseded lessons leave memory for good, even if harness history is later rebuilt.
+          await this.lessons.updateMany({ ...scope, id: { $in: replaces }, status: "published" },
+            { $set: { status: "superseded", updatedAt: lesson.createdAt } }, { session });
+        }
         await this.lessons.insertOne({ ...lesson, searchText: lessonSearchText(lesson) }, { session });
-        await this.audit.insertMany([proposalEvent(lesson), sharedEvent(lesson)].map((event) => ({ ...event })), { session });
+        await this.audit.insertMany([proposalEvent(lesson), sharedEvent(lesson, replaces)].map((event) => ({ ...event })), { session });
         await this.insertHarness(harness, session);
         await this.audit.insertOne({ ...harnessEvent(harness, lesson, lesson.version) }, { session });
         stored = lesson;

@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { loadSettings, resolveApiUrl } from "./index.js";
+import { loadSettings, repairFlattenedArguments, resolveApiUrl } from "./index.js";
 
 test("settings come from the environment first, then only the allowed keys of the credential file", async () => {
   const directory = await mkdtemp(join(tmpdir(), "team-memory-settings-"));
@@ -21,6 +21,19 @@ test("settings come from the environment first, then only the allowed keys of th
     assert.deepEqual(settings, { TEAM_API_URL: "https://team.example.test", TEAM_API_TOKEN: "file-token", TEAM_TICKET: "DEMO-118" });
     assert.deepEqual(loadSettings({ TEAM_MEMORY_ENV: join(directory, "missing.env") }), { settings: {}, source: null });
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("arguments a model flattens into one list are recovered", () => {
+  const repaired = repairFlattenedArguments({
+    title: "t", lesson: "l",
+    verificationSteps: ["Run the replay test", "Confirm with the Relay team", "appliesTo", "notifications", "evidence", "Replay test passed", "replaces", "old-id"],
+  });
+  assert.deepEqual(repaired.verificationSteps, ["Run the replay test", "Confirm with the Relay team"]);
+  assert.deepEqual(repaired.appliesTo, ["notifications"]);
+  assert.equal(repaired.evidence, "Replay test passed");
+  assert.deepEqual(repaired.replaces, ["old-id"]);
+  const clean = { title: "t", lesson: "l", verificationSteps: ["a", "b"], replaces: ["x"] };
+  assert.deepEqual(repairFlattenedArguments(clean), clean);
 });
 
 test("tokens are only sent to HTTPS origins or the local owner API", () => {

@@ -40,6 +40,26 @@ test("a shared lesson is published at once and reaches another engineer's memory
   } finally { await app.close(); }
 });
 
+test("a correction replaces the outdated lesson so no agent keeps loading it", async () => {
+  const app = buildApp({ repository: new InMemoryLessonRepository(), token: "test-token", scope, storage: "memory" });
+  try {
+    const share = (payload: Record<string, unknown>) => app.inject({ method: "POST", url: "/v1/lessons/share", headers: { ...headers, "idempotency-key": randomUUID() }, payload });
+    const old = (await share({ ...demoCandidate, title: "Dedupe TTL is 36 hours" })).json();
+    assert.equal((await share({ ...demoCandidate, title: "Bad reference", replaces: ["no-such-lesson"] })).statusCode, 400);
+    const fixed = await share({ ...demoCandidate, title: "Dedupe TTL is now 72 hours", replaces: [old.id] });
+    assert.equal(fixed.statusCode, 201);
+
+    const memory = (await app.inject({ url: "/v1/memory", headers })).json();
+    assert.deepEqual(memory.lessons.map((lesson: { title: string }) => lesson.title), ["Dedupe TTL is now 72 hours"]);
+    assert.equal((await app.inject({ url: `/v1/lessons/${old.id}`, headers })).json().status, "superseded");
+    const harness = (await app.inject({ url: "/v1/harness", headers })).json();
+    assert.deepEqual(harness.lessons.map((ref: { id: string }) => ref.id), [fixed.json().id]);
+    const shared = (await app.inject({ url: "/v1/audit", headers })).json().events
+      .find((event: { lessonId: string; kind: string }) => event.lessonId === fixed.json().id && event.kind === "lesson.published");
+    assert.match(shared.summary, new RegExp(`supersedes ${old.id}`));
+  } finally { await app.close(); }
+});
+
 test("hosted readers cannot share; writers can", async () => {
   const reader = "synthetic-team-access-token-reader-000000000002";
   const writer = "synthetic-team-access-token-writer-000000000002";

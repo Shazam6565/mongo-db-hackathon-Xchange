@@ -51,6 +51,42 @@ export function resolveApiUrl(raw: string): string {
   return url.origin;
 }
 
+type ShareArguments = {
+  title: string; lesson: string; appliesTo?: string[]; ticket?: string; evidence?: string; verificationSteps?: string[]; replaces?: string[];
+};
+const ARRAY_KEYS = ["appliesTo", "verificationSteps", "replaces"] as const;
+const TEXT_KEYS = ["ticket", "evidence"] as const;
+
+// Some models flatten later arguments into an earlier list, e.g.
+// verificationSteps: ["step", "appliesTo", "notifications", "replaces", "<id>"].
+// Split such lists at argument names so those values are not silently lost.
+export function repairFlattenedArguments(input: ShareArguments): ShareArguments {
+  const names = new Set<string>([...ARRAY_KEYS, ...TEXT_KEYS]);
+  const result: ShareArguments = { ...input };
+  for (const key of ARRAY_KEYS) {
+    const items = input[key];
+    if (!items?.some((item) => names.has(item.trim()))) continue;
+    const parts: Record<string, string[]> = { [key]: [] };
+    let current: string = key;
+    for (const item of items) {
+      if (names.has(item.trim())) { current = item.trim(); parts[current] ??= []; continue; }
+      parts[current]!.push(item);
+    }
+    result[key] = parts[key];
+    for (const [name, values] of Object.entries(parts)) {
+      if (name === key || values.length === 0) continue;
+      if ((ARRAY_KEYS as readonly string[]).includes(name)) {
+        const arrayKey = name as (typeof ARRAY_KEYS)[number];
+        result[arrayKey] = [...(result[arrayKey] ?? []), ...values];
+      } else {
+        const textKey = name as (typeof TEXT_KEYS)[number];
+        result[textKey] ||= values.join(" ");
+      }
+    }
+  }
+  return result;
+}
+
 export default function teamMemoryExtension(pi: ExtensionAPI) {
   const { settings, source } = loadSettings();
   let apiUrl: string | null = null;
@@ -173,9 +209,10 @@ export default function teamMemoryExtension(pi: ExtensionAPI) {
   });
 
   // Publishes immediately to shared memory in MongoDB. There is no review step.
-  async function shareLesson(input: {
-    title: string; lesson: string; appliesTo?: string[]; ticket?: string; evidence?: string; verificationSteps?: string[];
+  async function shareLesson(raw: {
+    title: string; lesson: string; appliesTo?: string[]; ticket?: string; evidence?: string; verificationSteps?: string[]; replaces?: string[];
   }): Promise<{ id: string; title: string }> {
+    const input = repairFlattenedArguments(raw);
     const reference = input.ticket?.trim() || ticketKey || "unspecified";
     const candidate: CandidateInput = {
       title: input.title.trim().slice(0, 160),
@@ -192,7 +229,8 @@ export default function teamMemoryExtension(pi: ExtensionAPI) {
         suggestedTools: [],
       },
     };
-    return await api("/lessons/share", candidate, { "idempotency-key": randomUUID() }) as { id: string; title: string };
+    const replaces = (input.replaces ?? []).map((id) => id.trim()).filter(Boolean).slice(0, 10);
+    return await api("/lessons/share", { ...candidate, replaces }, { "idempotency-key": randomUUID() }) as { id: string; title: string };
   }
 
   pi.registerTool({
@@ -203,6 +241,7 @@ export default function teamMemoryExtension(pi: ExtensionAPI) {
     promptGuidelines: [
       "When you confirm something another engineer would benefit from (a root cause, a check that mattered, a wrong assumption that was corrected), call share_lesson once with a short title and 1-3 actionable sentences.",
       "Share only findings confirmed by code, tests, logs or the engineer. Do not share secrets, credentials, private conversation or speculation. Do not re-share a lesson already in shared team memory.",
+      "If a finding corrects or updates a lesson already in shared team memory, share the corrected lesson and pass the outdated lesson's ID in replaces, so no agent keeps loading the old version.",
     ],
     parameters: Type.Object({
       title: Type.String({ minLength: 1, maxLength: 160, description: "Short, specific title" }),
@@ -211,6 +250,7 @@ export default function teamMemoryExtension(pi: ExtensionAPI) {
       ticket: Type.Optional(Type.String({ description: "Ticket key; defaults to the session's current ticket" })),
       evidence: Type.Optional(Type.String({ maxLength: 2000, description: "What confirmed it: test, log, file or engineer statement" })),
       verificationSteps: Type.Optional(Type.Array(Type.String(), { maxItems: 10, description: "Steps to confirm the lesson applies" })),
+      replaces: Type.Optional(Type.Array(Type.String(), { maxItems: 10, description: "IDs of shared-memory lessons this one corrects; they stop being loaded" })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const shared = await shareLesson(params);
