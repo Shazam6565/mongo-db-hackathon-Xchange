@@ -20,7 +20,7 @@ This is a **runnable skeleton, not the finished learning system**.
 | Local API, input validation, scoped lesson listing/candidate submission | Implemented |
 | Disposable in-memory storage with labeled sample data | Implemented |
 | MongoDB lesson repository and ordinary indexes | Implemented; requires a configured database |
-| React dashboard displaying lessons and evidence | Implemented |
+| React Catalog for lessons and manual tickets | Implemented; search/filter recent records, inspect evidence, add tickets |
 | Pi `/team-memory`, `/share-lesson`, and context injection | Starter implementation |
 | Local `.team-memory/MEMORY.md` generated from published lessons | Starter implementation |
 | Automatic extraction of lessons from agent failures | Planned |
@@ -57,7 +57,7 @@ Both apps read the root `.env`. The dashboard's development proxy adds the local
 server-side; it is not included in the browser bundle. The static production dashboard build
 does not include this development proxy and needs an authenticated backend deployment.
 
-To persist lesson candidates, configure `MONGODB_URI` and `MONGODB_DATABASE`, then restart the API.
+To persist lesson candidates and tickets, configure `MONGODB_URI` and `MONGODB_DATABASE`, then restart the API.
 The MongoDB adapter starts empty and creates only ordinary collection indexes. See
 [MongoDB setup](infra/mongodb/README.md) for planned collections, vector indexes, and Change Streams.
 
@@ -67,6 +67,21 @@ npm run dev:dashboard    # UI only
 npm run evaluate         # Prints the fixed suite identity; does not score or publish
 npm run check            # Tests, TypeScript checks, and dashboard production build
 ```
+
+## Use the Catalog
+
+The dashboard opens directly into a table of tickets and lessons. Use **Add ticket** for a short
+summary, optional reference, component and description. Tickets are created in the API's current
+team/project with status `open`; this does not create a Jira issue or start an agent run.
+Open a row to inspect the full record. Lesson details retain the existing fixed-suite evaluation
+action, which may publish or reject a candidate.
+
+Search, type/status filters and sort apply to the latest 100 records of each type before table
+pagination. Filters and selected records are linkable; column visibility, order, width and text
+wrapping are stored in this browser per project. This is a recent-record view, not complete history
+search. Temporary storage survives browser refreshes but resets when the API restarts; the UI labels
+that mode. Configured MongoDB stores tickets durably. See [Catalog scope](docs/catalog-brief.md) and
+[verification](docs/catalog-evidence.md).
 
 ## Try the Pi extension
 
@@ -125,7 +140,7 @@ flowchart LR
 ```text
 apps/
   api/                   Fastify API, memory/MongoDB repositories, integration contracts
-  dashboard/             React + Vite lesson/evidence viewer
+  dashboard/             React + Vite Catalog, ticket entry, lesson/evidence inspector
   evaluator/             Evaluation worker interface; intentionally does not publish
 packages/
   contracts/             Zod schemas, shared types, memory rendering, synthetic demo data
@@ -152,6 +167,9 @@ not an authenticated identity. The API assigns scope and initial candidate statu
 | --- | --- | --- |
 | GET | `/health` | Health, storage mode, evaluator version, and suite version |
 | GET | `/v1/lessons` | Up to 100 recent scoped lessons, including candidates |
+| GET | `/v1/tickets` | Up to 100 recent scoped tickets |
+| GET | `/v1/tickets/:id` | One scoped ticket, including older records linked directly |
+| POST | `/v1/tickets` | Create a manual ticket; requires a UUID `Idempotency-Key`. Same-request retries return the same record; conflicting references return 409 |
 | GET | `/v1/memory` | Up to 10 recent published lessons. Records `x-engineer-id` and the returned lesson versions. No semantic ranking yet |
 | POST | `/v1/lessons` | Validate and persist a candidate; cannot publish |
 | POST | `/v1/lessons/:id/evaluate` | Score a candidate against the fixed suite. Body: `{ "expectedVersion": 1 }`. Publishes or rejects only when that version still matches |

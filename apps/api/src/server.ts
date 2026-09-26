@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import { demoLessons } from "../../../packages/contracts/src/demo.js";
 import { buildApp } from "./app.js";
+import { InMemoryTicketRepository, MongoTicketRepository } from "./tickets.js";
 import { InMemoryLessonRepository, MongoLessonRepository } from "./repository.js";
 
 config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)), quiet: true });
@@ -18,8 +19,16 @@ const repository = uri
   ? await MongoLessonRepository.connect(uri, process.env.MONGODB_DATABASE ?? "team_memory_harness")
   : new InMemoryLessonRepository(demoLessons.map((lesson) => ({ ...lesson, ...scope })));
 
+let tickets;
+try {
+  tickets = uri
+    ? await MongoTicketRepository.connect(uri, process.env.MONGODB_DATABASE ?? "team_memory_harness")
+    : new InMemoryTicketRepository();
+} catch (error) { await repository.close(); throw error; }
+
 const app = buildApp({
   repository,
+  tickets,
   scope,
   token: process.env.TEAM_API_TOKEN ?? "local-demo-token",
   storage: uri ? "mongodb" : "memory",

@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { InMemoryTicketRepository, registerTickets, type TicketRepository } from "./tickets.js";
 import {
   CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, engineerIdFromHeader, type Scope,
 } from "@team-memory/contracts";
@@ -7,6 +8,7 @@ import { RepositoryError, type LessonRepository } from "./repository.js";
 
 export interface AppOptions {
   repository: LessonRepository;
+  tickets?: TicketRepository;
   token: string;
   scope: Scope;
   storage: "memory" | "mongodb";
@@ -26,6 +28,8 @@ function sendRepositoryError(error: unknown, reply: { code: (status: number) => 
 
 export function buildApp(options: AppOptions) {
   const suite = loadSuite();
+  if (options.storage === "mongodb" && !options.tickets) throw new Error("MongoDB mode requires a persistent ticket repository.");
+  const tickets = options.tickets ?? new InMemoryTicketRepository();
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 64 * 1024 });
   app.get("/health", async () => ({
     status: "ok",
@@ -41,6 +45,8 @@ export function buildApp(options: AppOptions) {
         return reply.code(401).send({ error: "Unauthorized" });
       }
     });
+
+    registerTickets(api, tickets, options.scope);
 
     api.get("/lessons", async () => ({
       scope: options.scope,
@@ -101,6 +107,6 @@ export function buildApp(options: AppOptions) {
     });
   }, { prefix: "/v1" });
 
-  app.addHook("onClose", async () => { await options.repository.close(); });
+  app.addHook("onClose", async () => { await Promise.all([options.repository.close(), tickets.close()]); });
   return app;
 }
