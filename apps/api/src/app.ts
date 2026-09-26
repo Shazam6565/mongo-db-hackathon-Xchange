@@ -80,6 +80,16 @@ export function buildApp(options: AppOptions) {
     registerTickets(api, tickets, options.scope);
     registerActivity(api, activity, options.scope, options.repository);
     registerCanvases(api, canvases, options.repository, tickets, options.scope);
+    // This route runs behind the same authentication hook as all record operations.
+    api.get("/access", async (request) => {
+      const principal = teamAuth?.authenticate(request);
+      return {
+        mode: teamAuth ? "team" : "local",
+        actorId: principal?.actorId ?? engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]),
+        role: principal?.role ?? "owner",
+        scope: options.scope,
+      };
+    });
     api.get<{ Params: { id: string } }>("/lessons/:id", async (req, reply) => (await options.repository.get(options.scope, req.params.id)) ?? reply.code(404).send({ error: "Lesson not found" }));
 
     api.get("/lessons", async () => ({

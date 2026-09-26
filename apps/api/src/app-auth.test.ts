@@ -43,6 +43,10 @@ test("readers can recall memory; only evaluators can publish through the evaluat
   try {
     assert.equal((await app.inject({ url: "/v1/memory", headers: headers("viewer") })).statusCode, 200);
     assert.equal((await app.inject({ method: "POST", url: "/v1/activity", headers: { ...headers("viewer"), "idempotency-key": randomUUID() }, payload: observation })).statusCode, 403);
+    for (const [method, url] of [["POST", "/v1/tickets"], ["POST", "/v1/lessons"], ["PUT", `/v1/canvases/${randomUUID()}`]] as const) {
+      assert.equal((await app.inject({ method, url, headers: headers("viewer"), payload: {} })).statusCode, 403);
+    }
+    assert.deepEqual((await app.inject({ url: "/v1/access", headers: headers("viewer") })).json(), { mode: "team", actorId: "viewer", role: "reader", scope });
     const proposal = (await app.inject({ method: "POST", url: "/v1/lessons", headers: headers("alice"), payload: demoCandidate })).json();
     for (const actor of ["viewer", "alice"] as const) assert.equal((await app.inject({ method: "POST", url: `/v1/lessons/${proposal.id}/evaluate`, headers: headers(actor), payload: { expectedVersion: 1 } })).statusCode, 403);
     assert.equal((await app.inject({ method: "POST", url: `/v1/lessons/${proposal.id}/evaluate`, headers: headers("reviewer"), payload: { expectedVersion: 1 } })).statusCode, 200);
@@ -70,6 +74,8 @@ test("local owner mode keeps its existing bearer contract and needs no browser s
   try {
     assert.deepEqual((await app.inject({ url: "/session" })).json(), { authenticated: true, mode: "local" });
     assert.equal((await app.inject({ url: "/v1/activity" })).statusCode, 401);
+    assert.equal((await app.inject({ url: "/v1/access" })).statusCode, 401);
+    assert.deepEqual((await app.inject({ url: "/v1/access", headers: { authorization: "Bearer local-test", "x-engineer-id": "local-owner" } })).json(), { mode: "local", actorId: "local-owner", role: "owner", scope });
     assert.equal((await app.inject({ url: "/v1/activity", headers: { authorization: "Bearer local-test" } })).statusCode, 200);
     assert.equal((await app.inject({ method: "POST", url: "/session", payload: { token: "local-test" } })).statusCode, 404);
   } finally { await app.close(); }

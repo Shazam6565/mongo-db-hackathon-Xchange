@@ -7,9 +7,19 @@ description: Read published project lessons, propose evidence-backed lessons, an
 
 Use the shared API. The server owns MongoDB credentials and the project scope. Never request a database password, access another project's records, or put credentials in a canvas. Requires Node 22+ and server-provided `TEAM_API_URL`, `TEAM_API_TOKEN` and an optional self-reported `ENGINEER_ID`. HTTP is allowed only on loopback. No provider credentials are needed in the client.
 
+Each hosted agent installation uses its own token, separate from its human owner's
+browser token. At initial connection or after credential changes, run `access` and
+verify the returned identity, role and scope against the assigned workspace. Hosted
+access must report `mode: "team"`; `ENGINEER_ID` is ignored for hosted identity.
+Readers can retrieve records; writers can also create tickets/activity/candidates
+and edit canvases. Only a separately enrolled evaluator can run the publication gate.
+A 401 requires owner credential repair; a 403 is a role boundary, not a reason to
+seek broader credentials. The repository onboarding guide is `docs/team-access.md`.
+
 Run the bundled client relative to this skill directory:
 
 ```sh
+node scripts/client.mjs access
 node scripts/client.mjs memory
 node scripts/client.mjs catalog
 node scripts/client.mjs canvases
@@ -54,7 +64,15 @@ A record placement replaces `title`/`text` with `ref: {"kind":"ticket","id":"CAT
 
 ## Propose lessons
 
-Submit a bounded, evidence-backed candidate with `node scripts/client.mjs propose ./candidate.json` using the API's `CandidateInputSchema`. Include source references, scope of applicability, proposed instructions and verification steps. The existing Pi `/share-lesson` command offers the same candidate path. Do not auto-retry proposals after an uncertain response; inspect the catalog for the result. Only the existing evaluation gate can publish a candidate. Do not store private conversations, hidden reasoning or secrets as lessons.
+Submit a bounded, evidence-backed candidate with `node scripts/client.mjs propose ./candidate.json OPERATION_UUID` using the API's `CandidateInputSchema`. Include source references, scope of applicability, proposed instructions and verification steps. Retain the UUID and payload; identical retries return the same candidate, and a 409 requires reconciliation. The UUID is optional for older clients: without it, do not auto-retry an uncertain result; inspect the catalog first. The existing Pi `/share-lesson` command offers the same candidate path without retry protection. Only the existing evaluation gate can publish a candidate. Do not store private conversations, hidden reasoning or secrets as lessons.
+
+## Create a ticket
+
+Writers can call `node scripts/client.mjs create-ticket ./ticket.json OPERATION_UUID`.
+Use the API's strict ticket input: `summary`, optional `key`, `description`, `component`
+and `acceptanceCriteria`. Scope, ID and status are server-owned. Retain the payload
+and operation UUID for identical retries; resolve 409 conflicts before creating a
+different operation. This adds a workspace ticket, not an external issue or agent run.
 
 ## Track observations and effects
 

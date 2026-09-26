@@ -76,9 +76,10 @@ Agents need only `TEAM_API_URL`, `TEAM_API_TOKEN` and `ENGINEER_ID`, never `MONG
 
 ## Access for teammates
 
-- **Today, from each teammate's machine:** run the API locally against the shared Atlas database.
-  The teammate needs a `.env` with `MONGODB_URI` delivered privately (for example, through 1Password,
-  never through Git or chat), `TEAM_ID=xchange-team`, the right `PROJECT_ID`, and their IP address
-  allowed in Atlas Network Access.
-- **Hosted:** once the hosted API is deployed (XCH-9), teammates and their agents use its HTTPS URL
-  with individual grants instead of the database URI. See [frontend sharing](frontend-sharing.md).
+- **Intended path:** teammates and their agents use the hosted API's HTTPS URL, each with an
+  individual grant (XCH-9). See [frontend sharing](frontend-sharing.md). Do not distribute
+  `MONGODB_URI`, which grants direct database access around the API and its gate.
+- **Before the hosted API is live:** a teammate who must run their own local API against Atlas
+  gets a separate Atlas database user created by the owner, never a copy of the owner's
+  connection string. Their IP address must be allowed in Atlas Network Access, and the user
+  should be revoked after the event.

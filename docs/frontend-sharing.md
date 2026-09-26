@@ -5,6 +5,11 @@ plus `api/index.ts` for the same-origin team API. Catalog is the default screen.
 Do not replace it with a generated landing page or deploy `dist-preview` as the live app.
 The separate synthetic preview is still available for offline design review.
 
+Use [team access and onboarding](team-access.md) for credential issuance, teammate
+sign-in, agent setup, role boundaries, rotation and revocation. `npm run access:issue`
+prepares private credential files; enrollment still requires applying the grant to
+the intended hosted environment and verifying the deployed API.
+
 ## Current evidence — 26 September 2026
 
 | Boundary | Evidence | Status |
@@ -93,7 +98,8 @@ runs disposable Mongo tests. Neither command proves Vercel deployment.
 
 The current Labs identity check is `profile=none (explicit neutral boundary)`.
 Deployment requires access explicitly scoped to the intended Vercel project; do
-not use an unrelated cached account. The current task has not deployed or pushed.
+not use an unrelated cached account. A Git push alone does not prove live deployment
+or member enrollment; verify the deployed project and API separately.
 Before a production change, retain the current Vercel deployment ID. Roll back by
 promoting that known prior deployment; database schema is unchanged by this slice.
 If that prior deployment is the static preview, it restores read-only availability,
