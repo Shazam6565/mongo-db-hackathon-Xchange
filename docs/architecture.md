@@ -69,8 +69,9 @@ sequenceDiagram
 | Dashboard | Explain which lesson exists, where it came from, how it was tested, and who consumed it |
 
 The model continues to run through Pi and its configured provider. Sharing changes retrieved
-context and eventually harness configuration, not model weights. The implementation currently
-injects lesson text only; `proposedChange` is saved but not activated.
+context and harness configuration, not model weights. Published lessons reach agents through
+versioned harness records: Pi injects the active version as context, and `sync-skills` installs it
+as native skills. `proposedChange` is rendered as suggested steps; it activates no tools.
 
 ## Ticket and agent-event integration
 
@@ -126,5 +127,5 @@ tool authorization. Treat evidence references as claims until the evaluator veri
 
 Two independently identified Pi sessions, one repo, one candidate learned from ticket A, fixed
 positive/negative evaluation cases, one published version, and an improved result on ticket B.
-The fixed-suite candidate-to-published transition is implemented. Live model trials, harness
-activation, per-user auth, and cross-machine delivery remain open.
+The fixed-suite candidate-to-published transition and versioned harness rollout/rollback are
+implemented. Live model trials, per-user auth, and cross-machine delivery remain open.

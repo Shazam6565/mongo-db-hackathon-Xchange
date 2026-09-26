@@ -65,12 +65,21 @@ the publication gate and the audit trail.
 
 ## How agents fetch
 
-- **Pi:** the extension fetches published lessons before every run and injects them as context.
-  `/team-memory` refreshes `.team-memory/MEMORY.md`.
-- **Any agent:** `node skills/team-memory/scripts/client.mjs memory` returns the scope's published
-  lessons: the ten most recently updated, with no ranking for the current ticket yet (XCH-4).
-- `/v1/memory` records a `memory.consumed` audit event for the caller. Use `catalog` or
-  `GET /v1/lessons` to inspect data without appearing as a consumer.
+Agents load the **active harness version**: the set of published lessons currently in force.
+Publishing a lesson through the gate appends a version that adds it; an evaluator's rollback
+appends a version that removes it. The lesson keeps its evaluation either way. The dashboard's
+Harness view (`/?view=harness`) shows the active version, its history, and a Roll back action.
+
+- **Pi:** the extension fetches the active version before every run and injects it as context.
+  `/team-memory` refreshes `.team-memory/MEMORY.md`, which names the version.
+- **Claude Code and other agents:** `node skills/team-memory/scripts/client.mjs sync-skills`
+  installs every lesson in the active version as a native skill under `.claude/skills/` and
+  `.agents/skills/`, and removes skills for rolled-back lessons. Each skill's description says
+  where the lesson applies, so the agent's own loader decides relevance. Re-run it at task start.
+- **Any agent:** `client.mjs memory` returns up to ten lessons from the active version, with no
+  ranking for the current ticket yet (XCH-4).
+- `memory` and `sync-skills` record a `memory.consumed` audit event with the harness version.
+  Use `harness`, `catalog` or `GET /v1/lessons` to inspect data without appearing as a consumer.
 
 Agents need only `TEAM_API_URL`, `TEAM_API_TOKEN` and `ENGINEER_ID`, never `MONGODB_URI`.
 

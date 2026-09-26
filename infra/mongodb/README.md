@@ -16,15 +16,17 @@ Implemented and planned collections:
 | `agent_changes` | Proposed agent-event ingestion; no collection or routes are implemented |
 | `lessons` | Lesson text, scope, applicability, evidence references, status, version. Embedding is planned |
 | `evaluations` | Fixed-suite baseline/candidate scores, case results, regressions, evaluator identity |
-| `harness_versions` | Versioned instructions, registered-tool presets, verification steps |
+| `harness_versions` | Immutable versions of which published lessons agents load; publishing adds a lesson, rollback removes one |
 | `audit_events` | Proposal, evaluation, publication, rejection, and consumption events |
 
 `tickets`, `canvases`, `activity_records`, `lessons`, `evaluations`, and `audit_events` are written by the API.
 Tickets use unique IDs and unique `(teamId, projectId, key)` references; HTTP detail routes
 use the record ID. The proposed agent-event interface does not provision a second log store. Publication of a lesson,
 its evaluation, and its audit events uses one MongoDB transaction, which needs a replica set.
-`harness_versions` remains a design placeholder: a published lesson does not activate tools or
-instructions inside Pi.
+Publishing a lesson appends a `harness_versions` record in that same transaction; a rollback appends
+one without the lesson. A unique `(teamId, projectId, number)` index keeps concurrent changes from
+sharing a version. A version selects lessons for agent context and generated skills; it grants no
+tools and does not change Pi's configuration.
 
 ## Vector Search — planned
 
