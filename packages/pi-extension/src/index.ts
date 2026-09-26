@@ -81,6 +81,8 @@ export default function teamMemoryExtension(pi: ExtensionAPI) {
       message.role !== "custom" || message.customType !== CUSTOM_TYPE || index === last) };
   });
 
+  // TODO: Send scoped ticket observations/change events to the API for MongoDB storage
+  // and display in apps/dashboard. Logging an observation must not automatically publish it.
   // TODO: Extract evidence-backed candidates from tool_result and engineer corrections.
   // TODO: Subscribe to scoped SSE invalidations and refresh at a safe model-call boundary.
   // TODO: Apply evaluated harness versions (instructions, tool presets, verification steps).

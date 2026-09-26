@@ -20,7 +20,9 @@ This is a **runnable skeleton, not the finished learning system**.
 | Local API, input validation, scoped lesson listing/candidate submission | Implemented |
 | Disposable in-memory storage with labeled sample data | Implemented |
 | MongoDB lesson repository and ordinary indexes | Implemented; requires a configured database |
-| React Catalog for lessons and manual tickets | Implemented; search/filter recent records, inspect evidence, add tickets |
+| React Catalog for lessons, tickets and reported activity | Implemented; search/filter recent records, inspect evidence and histories |
+| Shared Canvas and activity Timeline | Implemented; see [Canvas](docs/shared-canvas.md) and [tracking](docs/memory-tracking.md) |
+| Read-only sharing preview | Implemented with synthetic data; remote hosting pending |
 | Pi `/team-memory`, `/share-lesson`, and context injection | Starter implementation |
 | Local `.team-memory/MEMORY.md` generated from published lessons | Starter implementation |
 | Automatic extraction of lessons from agent failures | Planned |
@@ -28,7 +30,6 @@ This is a **runnable skeleton, not the finished learning system**.
 | Harness configuration rollout, rollback, and audit history | Contract/design only |
 | Semantic retrieval / embedding generation / Atlas Vector Search | Adapter interface only |
 | Live synchronization through Change Streams and SSE | Design only; refresh is currently per run/manual |
-| Jira integration | Adapter interface only |
 | Per-user authentication, membership, and remote deployment | Planned; current services bind to loopback |
 
 No LLM calls or paid cloud resources are created by `npm run dev` or `npm run evaluate`. The single published lesson
@@ -117,6 +118,12 @@ files and conversations remain local; shared memory is a generated view of backe
 The current local-only server is for a single-machine two-session demo. Actual remote engineers
 need a reachable authenticated HTTPS API with team membership checks.
 
+## Frontend integration
+
+`apps/dashboard` remains the application frontend. Keep its Catalog, Canvas and Timeline; there is no planned migration to a separate root `frontend/` app.
+The incoming agent-event types are future integration contracts, not callable endpoints.
+See [the reconciled integration contract](docs/frontend-integration.md) before wiring a client.
+
 ## Architecture sketch
 
 ![Architecture sketch](docs/architecture.svg)
@@ -131,7 +138,6 @@ flowchart LR
   API <--> DB[(MongoDB Atlas)]
   UI[Demo dashboard] --> API
   E[Evaluation worker — planned] -.->|Compare, then approve/reject| API
-  J[Jira — planned] -.-> API
   DB -.->|Change Streams + scoped SSE — planned| API
 ```
 
@@ -216,7 +222,7 @@ proof that a lesson passed evaluation.
 3. Add Atlas Vector Search and context budgets with component/version applicability checks.
 4. Add versioned harness updates, rollback, and consumption logs.
 5. Add Change Stream/SSE invalidations and reconnection handling.
-6. Add per-user auth, then connect two machines and integrate Jira.
+6. Add per-user auth, then connect two machines and integrate ticket-linked agent observations.
 
 Keep an end-to-end two-ticket demonstration working as each layer is added. See [demo plan](docs/demo.md).
 

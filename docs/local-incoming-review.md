@@ -1,7 +1,7 @@
 # Local and incoming review — 26 September 2026
 
 Reviewed local commits `939742a` (evaluation gate) and `f639332` (Catalog), plus the
-integration boundaries of the ongoing Canvas/activity/preview work, against
+Canvas/activity checkpoint `591e27b` and preview checkpoint `1b5eaf7`, against
 incoming `origin/main` commit `e9c3f0b` (ticket/agent-change contracts and frontend plan).
 The review is based on these revisions; it is not a blanket approval of future edits.
 
@@ -70,3 +70,20 @@ to preserve the active tasks' uncommitted changes.
 The normal `tsx` CLI could not create its IPC socket in the sandbox. Running the
 same tests with `node --import tsx --test` succeeded. No shared owner data or cloud
 database was used for the review's database checks.
+
+## Integration outcome
+
+The incoming commit was merged into the existing branch after checkpoints `591e27b`
+and `1b5eaf7`. All six conflicts were resolved while retaining the current dashboard
+entry, evaluation gate, native ticket implementation and Canvas/activity wiring.
+Incoming future agent-event types remain explicitly unimplemented; native Ticket and
+TicketRepository exports reuse the current definitions. Conflicting frontend plans
+were replaced with the owner-approved direction. No remote push was performed.
+
+Final merged checks: `npm run check` passed with all 24 tests, including the local
+MongoDB integration cases, TypeScript and the production build. The three preview
+isolation checks and the separate Vercel preview build also passed. The preserved
+dashboard entry, API application/server wiring and Catalog were unchanged by the merge.
+
+The two evaluation findings above remain open; a passing regression suite does not
+resolve those demonstrated edge cases.

@@ -5,16 +5,22 @@ Configure `MONGODB_URI` and `MONGODB_DATABASE` in the root `.env`. The API creat
 indexes for the stable lesson ID and scoped/status-filtered listing. MongoDB mode starts empty;
 sample published lessons are exclusive to disposable in-memory mode.
 
-Planned collections:
+Implemented and planned collections:
 
 | Collection | Contents |
 | --- | --- |
+| `canvases` | Structured notes, record references and revision-checked layout |
+| `activity_records` | Scoped observations, decisions, applications, outcomes and corrections |
+| `tickets` | Native ticket records, created through the scoped API |
+| `agent_changes` | Proposed agent-event ingestion; no collection or routes are implemented |
 | `lessons` | Lesson text, scope, applicability, evidence references, status, version. Embedding is planned |
 | `evaluations` | Fixed-suite baseline/candidate scores, case results, regressions, evaluator identity |
 | `harness_versions` | Versioned instructions, registered-tool presets, verification steps |
 | `audit_events` | Proposal, evaluation, publication, rejection, and consumption events |
 
-`lessons`, `evaluations`, and `audit_events` are written by the API. Publication of a lesson,
+`tickets`, `canvases`, `activity_records`, `lessons`, `evaluations`, and `audit_events` are written by the API.
+Tickets use unique IDs and unique `(teamId, projectId, key)` references; HTTP detail routes
+use the record ID. The proposed agent-event interface does not provision a second log store. Publication of a lesson,
 its evaluation, and its audit events uses one MongoDB transaction, which needs a replica set.
 `harness_versions` remains a design placeholder: a published lesson does not activate tools or
 instructions inside Pi.

@@ -63,6 +63,31 @@ export type Scope = z.infer<typeof ScopeSchema>;
 export type CandidateInput = z.infer<typeof CandidateInputSchema>;
 export type Lesson = z.infer<typeof LessonSchema>;
 export type MemorySnapshot = z.infer<typeof MemorySnapshotSchema>;
+
+// Native tickets use the implemented, validated record shape.
+export type { TicketRecord as Ticket } from "./tickets.js";
+
+// Future agent-event ingestion contract. No /v1/agent-changes route is registered.
+export interface AgentChangeInput {
+  eventId: string; // Stable across retries, for scoped idempotency.
+  ticketKey: string;
+  agentId: string;
+  sessionId: string;
+  kind: "observation" | "triage-proposal" | "verification-result" | "lesson-candidate" | "memory-applied";
+  summary: string;
+  observedAt: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  evidence: z.infer<typeof EvidenceSchema>[];
+  lessonId?: string;
+}
+
+export interface AgentChange extends AgentChangeInput, Scope {
+  id: string;
+  engineerId: string; // Assigned by the service from authenticated identity.
+  recordedAt: string;
+}
+
 export type EvaluateRequest = z.infer<typeof EvaluateRequestSchema>;
 
 export interface LessonVersionRef {

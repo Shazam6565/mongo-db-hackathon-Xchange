@@ -2,7 +2,7 @@
 
 Target: independent engineering agents share useful, tested lessons while retaining separate
 task histories and working copies. MongoDB owns shared records; Pi extensions adapt each local
-agent's context. Jira provides the first ticket workflow.
+agent's context. Native tickets in the Catalog provide the first ticket workflow.
 
 ## System sketch
 
@@ -20,7 +20,7 @@ flowchart TB
   end
   PA <-->|Candidate submission / published snapshot| API[Shared memory API — TypeScript]
   PB <-->|Candidate submission / published snapshot| API
-  UI[Lesson + evidence dashboard] --> API
+  UI[Catalog in apps/dashboard] --> API
   API <--> DB[(MongoDB Atlas: lessons)]
   API -.->|Candidate queue — planned| EVAL[Isolated evaluator: baseline vs candidate]
   EVAL -.->|Scores and regressions| GATE[Version-checked publication gate]
@@ -28,7 +28,6 @@ flowchart TB
   DB -.->|Change Stream — planned| EVENTS[Scoped SSE notifications]
   EVENTS -.->|Invalidate, refetch at next safe boundary| PA
   EVENTS -.->|Invalidate, refetch at next safe boundary| PB
-  JIRA[Jira adapter — planned] -.-> API
 ```
 
 Solid connections are scaffold paths. Dashed connections are planned. The MongoDB adapter is
@@ -68,11 +67,20 @@ sequenceDiagram
 | Evaluator | Execute fixed baseline/candidate trials in isolation; compute hard metrics; cannot be edited by the candidate |
 | MongoDB | Durable shared knowledge, evidence metadata, versions, later vectors and publication history |
 | Dashboard | Explain which lesson exists, where it came from, how it was tested, and who consumed it |
-| Jira adapter | Convert tickets to the common schema and submit visible triage proposals |
 
 The model continues to run through Pi and its configured provider. Sharing changes retrieved
 context and eventually harness configuration, not model weights. The implementation currently
 injects lesson text only; `proposedChange` is saved but not activated.
+
+## Ticket and agent-event integration
+
+The existing dashboard remains the frontend. Native tickets are implemented in
+`apps/api/src/tickets.ts` with validated records in `packages/contracts/src/tickets.ts`.
+The `Ticket` export aliases that record, and the integration module re-exports the existing
+repository interface. Incoming `AgentChange` types describe possible future ingestion;
+they do not add routes, runtime validation or storage. See [frontend integration](frontend-integration.md)
+for the differences from the implemented activity API. Recording an observation must not
+automatically edit a ticket or publish a lesson.
 
 ## Memory and consistency
 
