@@ -373,6 +373,39 @@
           {"id": "e6", "from": "xch-9", "to": "xch-10", "label": "before sharing"}
         ]
       }
+    },
+    {
+      "key": "guide-original-design", "editor": "team-guides",
+      "canvas": {
+        "title": "The original design: one lesson, every agent", "kind": "guide", "order": 6,
+        "description": "The first README's architecture sketch as one flowchart: how one engineer's lesson was meant to reach every agent. Follow 1 to 6; cards say what is still planned.",
+        "nodes": [
+          {"id": "engineer-a", "kind": "note", "title": "1 · Engineer A and Pi", "text": "Ticket A, in their own checkout and conversation. Pi runs the agent loop; a failing test or a correction exposes a mistake.", "x": 0, "y": 0, "color": "amber"},
+          {"id": "candidate", "kind": "note", "title": "2 · Candidate lesson", "text": "A lesson, its evidence, where it applies and a proposed workflow change. It cannot publish itself. Automatic extraction is still planned (XCH-7).", "x": 320, "y": 0, "color": "amber"},
+          {"id": "api", "kind": "note", "title": "Shared memory API", "text": "One TypeScript service for every engineer and agent. It fixes the team and project scope, validates, stores and retrieves.", "x": 640, "y": 0, "color": "neutral"},
+          {"id": "evaluator", "kind": "note", "title": "3 · Isolated evaluator", "text": "Runs current and proposed workflows on a fixed held-out suite, with a negative control. Today it scores the lesson text, not agent runs (XCH-2).", "x": 960, "y": 0, "color": "neutral"},
+          {"id": "gate", "kind": "note", "title": "4 · Publication gate", "text": "Checks the expected version, then publishes an immutable version only if the candidate passes. Pi's direct share skips it (XCH-34).", "x": 960, "y": 240, "color": "sage"},
+          {"id": "atlas", "kind": "note", "title": "MongoDB Atlas", "text": "The authoritative shared store and its history: lessons, evidence, evaluations, harness versions, vectors and audit events.", "x": 640, "y": 240, "color": "neutral"},
+          {"id": "notify", "kind": "note", "title": "5 · Change Stream → SSE", "text": "A publish becomes a scoped notice; agents refetch at their next safe model-call boundary. Still planned (XCH-5); today Pi refetches each run.", "x": 320, "y": 240, "color": "neutral"},
+          {"id": "engineer-b", "kind": "note", "title": "6 · Engineer B and Pi", "text": "Ticket B, in a separate workspace. Pi loads the published lesson into context, applies it and records the outcome. The model is not retrained.", "x": 0, "y": 240, "color": "amber"},
+          {"id": "cache", "kind": "note", "title": "Local MEMORY.md", "text": "Each Pi writes a local MEMORY.md from published lessons. It is a generated cache: editing it changes nothing shared.", "x": 0, "y": 480, "color": "neutral"},
+          {"id": "jira", "kind": "note", "title": "Jira adapter", "text": "Turns Jira tickets into the common schema and posts visible triage proposals. Still planned; tickets are entered in Catalog.", "x": 320, "y": 480, "color": "blue"},
+          {"id": "dashboard", "kind": "note", "title": "Evidence dashboard", "text": "For people: which lessons exist, where they came from, how they were tested and who used them. Reads through the API.", "x": 640, "y": 480, "color": "blue"},
+          {"id": "goal", "kind": "note", "title": "The point: a measured loop", "text": "Sharing memory is not the novelty. One engineer's failure should measurably improve another's work. Not measured yet (XCH-2).", "x": 960, "y": 480, "color": "neutral"}
+        ],
+        "edges": [
+          {"id": "extracts", "from": "engineer-a", "to": "candidate", "label": "extracts"},
+          {"id": "submits", "from": "candidate", "to": "api", "label": "submits"},
+          {"id": "queues", "from": "api", "to": "evaluator", "label": "queues"},
+          {"id": "stores", "from": "api", "to": "atlas", "label": "reads and writes"},
+          {"id": "scores", "from": "evaluator", "to": "gate", "label": "scores and regressions"},
+          {"id": "publishes", "from": "gate", "to": "atlas", "label": "publishes"},
+          {"id": "streams", "from": "atlas", "to": "notify", "label": "change stream"},
+          {"id": "notifies", "from": "notify", "to": "engineer-b", "label": "notifies"},
+          {"id": "writes", "from": "engineer-b", "to": "cache", "label": "writes"},
+          {"id": "shown", "from": "atlas", "to": "dashboard", "label": "shown via the API"}
+        ]
+      }
     }
   ]
 }

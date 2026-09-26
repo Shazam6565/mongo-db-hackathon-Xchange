@@ -33,7 +33,7 @@ Canvases are read by people and by agents, so they follow one set of house rules
 - **Lines are claims.** Label every connection with a verb or an audience (`informs`, `blocks`, `agents`). A connection is an authored claim, not proof of causality. Call a hypothesis a hypothesis, and point to the test, commit or evaluation behind a claim.
 - **Guides and boards.** `kind: "guide"` with an `order` lists a curated canvas under Start here; everything else is a working board. Guides are reviewed like code: author them in `corpus/xchange.json`, check them with `npm run seed -- corpus/xchange.json --dry-run`, then seed. Once seeded, edits made in the app are kept; the loader never overwrites them.
 
-The starting guides are **Start here: join the workspace**, **How the system works**, **A lesson's life**, **Writing canvases** and **What works and what is next**. They describe the platform and its intended flow; they are not learned lessons or evidence that an agent improved.
+The starting guides are **Start here: join the workspace**, **How the system works**, **A lesson's life**, **Writing canvases**, **What works and what is next** and **The original design: one lesson, every agent**, which redraws the first README's architecture sketch and learning loop and marks the parts still planned. They describe the platform and its intended flow; they are not learned lessons or evidence that an agent improved.
 
 ## Give agents the same capability
 
