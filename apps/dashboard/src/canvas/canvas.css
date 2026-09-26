@@ -8,18 +8,13 @@
 .save-state { font-size: 11px; color: var(--muted); padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .save-state.is-dirty { color: #7d5d1f; }
 .save-state.is-risk { color: var(--danger); }
-/* The canvas name in the bottom bar opens a small panel with the purpose, guide settings and rare actions. */
-.canvas-details > summary { border-color: transparent; padding: 3px 8px; font-size: 12px; font-weight: 600; color: var(--ink); max-width: min(360px, 40vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.canvas-details > summary .guide-badge { margin-left: 8px; font-weight: 500; }
-.canvas-details > .popover-panel { top: auto; bottom: calc(100% + 8px); width: 340px; max-width: calc(100vw - 32px); font-size: 12px; color: var(--ink); }
-.canvas-panel fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
-.canvas-panel input,.canvas-panel textarea,.canvas-panel select { width: 100%; display: block; margin-top: 4px; }
-.canvas-panel input[aria-invalid=true] { border-color: var(--danger); }
-.canvas-panel textarea { resize: vertical; }
-.canvas-panel .record-prose { margin: 0; max-height: 220px; overflow: auto; }
-.canvas-panel .muted { margin: 10px 0 0; font-size: 11px; }
-.panel-actions { display: flex; gap: 14px; margin-top: 10px; }
-.canvas-panel .text-button { padding: 0; font-size: 12px; }
+/* The canvas name in the bottom bar opens the side panel on the canvas itself: purpose, guide settings and rare actions. */
+.canvas-footer .canvas-name { border-color: transparent; font-weight: 600; color: var(--ink); max-width: min(360px, 40vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-footer .canvas-name[aria-pressed=true] { background: var(--soft); }
+.canvas-footer .canvas-name .guide-badge { margin-left: 8px; font-weight: 500; }
+.canvas-inspector > .muted { margin: 14px 0 0; font-size: 11px; }
+.panel-actions { display: flex; gap: 14px; margin-top: 12px; }
+.panel-actions .text-button { padding: 0; font-size: 12px; }
 .guide-badge,.draft-badge { display: inline-block; font-size: 10px; letter-spacing: .02em; border-radius: 3px; padding: 1px 6px; white-space: nowrap; }
 .guide-badge { color: #37614a; background: #eaf3ed; border: 1px solid #cfe2d5; }
 .draft-badge { color: #7d5d1f; background: #faf1df; border: 1px solid #ecdcb8; }

@@ -39,11 +39,13 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
   const [kept, setKept] = useState(true), [denied, setDenied] = useState(false);
   const [ask, setAsk] = useState<"discard" | { leave: () => void } | null>(null);
   const [selected, setSelected] = useState(""), [flagged, setFlagged] = useState("");
+  // The side panel shows the selected card, or the canvas itself when opened from its name in the bottom bar.
+  const [showCanvas, setShowCanvas] = useState(false);
   const [viewport, setViewport] = useState<Viewport>({ x: 50, y: 60, zoom: 1 });
   const [edgeTo, setEdgeTo] = useState(""), [edgeLabel, setEdgeLabel] = useState("");
   const stage = useRef<HTMLDivElement>(null), gesture = useRef<Gesture | null>(null), space = useRef(false);
   const operation = useRef<{ body: string; key: string } | null>(null);
-  const fitted = useRef(false), closing = useRef(false), details = useRef<HTMLDetailsElement>(null);
+  const fitted = useRef(false), closing = useRef(false);
   const editable = writable && !denied;
   const busy = saving || refreshing;
   const draft = doc?.draft;
@@ -143,7 +145,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
     if (!doc || busy || !editable) return false;
     if (!dirty) { setNotice({ tone: "ok", text: "Nothing new to save." }); return true; }
     const check = problem(doc.draft);
-    if ("message" in check) { setError(check.message); if (check.node) { setFlagged(check.node); setSelected(check.node); } else if (details.current) details.current.open = true; return false; }
+    if ("message" in check) { setError(check.message); if (check.node) { setFlagged(check.node); setSelected(check.node); } else { setSelected(""); setShowCanvas(true); } return false; }
     return commit(doc, check.valid, false);
   }
   async function commit(current: Doc, canvas: CanvasInput, combined: boolean): Promise<boolean> {
@@ -276,8 +278,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
     const target = event.target as HTMLElement;
     if (target.closest("a,button,input,select,textarea")) return;
     const nodeId = !space.current && event.button === 0 ? target.closest<HTMLElement>("[data-node]")?.dataset.node : undefined;
-    if (nodeId) setSelected(nodeId); else if (!space.current && event.button === 0) setSelected("");
-    if (details.current) details.current.open = false;
+    if (!space.current && event.button === 0) { setSelected(nodeId ?? ""); setShowCanvas(false); }
     event.preventDefault(); stage.current?.focus({ preventScroll: true });
     gesture.current = { pointer: event.pointerId, startX: event.clientX, startY: event.clientY, viewport: { ...viewport }, draft: structuredClone(draft), nodeId: editable && !busy ? nodeId : undefined, moved: false };
     stage.current?.setPointerCapture(event.pointerId);
@@ -339,13 +340,13 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
   // Nothing sits between the app tabs and the canvas: the few controls live in the bottom bar, and
   // notices float over the stage.
   return <main className="canvas-main">
-    <div className={`canvas-workspace ${node ? "with-inspector" : ""}`}>
+    <div className={`canvas-workspace ${node || showCanvas ? "with-inspector" : ""}`}>
       {error && <div className="error-message" role="alert">{error}{retry && !busy && editable && dirty && <button onClick={() => void save()}>Save again</button>}<button className="icon-button" aria-label="Dismiss error" onClick={() => setError("")}>×</button></div>}
       {notice && <div className={`notice ${notice.tone === "warn" ? "is-warn" : ""}`} role="status">{notice.text}<button className="icon-button" aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
       <div ref={stage} className={`canvas-stage ${editable ? "" : "is-view"}`} role="region" aria-label="Canvas drawing area" tabIndex={0} onPointerDown={start} onPointerMove={track} onPointerUp={finish} onPointerCancel={cancelGesture} onLostPointerCapture={() => { if (gesture.current) cancelGesture(); }} onDoubleClick={focusCard} onKeyDown={event => {
         if ((event.target as HTMLElement).closest("a,button,input,textarea,select")) return;
         if (event.code === "Space") { event.preventDefault(); space.current = true; }
-        if (event.key === "Escape") { event.preventDefault(); if (gesture.current) cancelGesture(); else setSelected(""); }
+        if (event.key === "Escape") { event.preventDefault(); if (gesture.current) cancelGesture(); else { setSelected(""); setShowCanvas(false); } }
         if (!event.metaKey && !event.ctrlKey && !event.altKey) {
           if (event.key === "f" || event.key === "F") { event.preventDefault(); fit(); }
           if (event.key === "=" || event.key === "+") { event.preventDefault(); zoomWith(zoom => zoom * ZOOM_STEP); }
@@ -365,7 +366,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
           })}</svg>
           {draft.nodes.map(item => { const ref = resolve(item), title = titleOf(item);
             // Cards have a fixed size; give the text the lines a one- or two-line title and the record link leave free.
-            const lines = (item.kind === "record" && ref ? 3 : 5) - (title.length > 26 ? 1 : 0); return <article key={item.id} data-node={item.id} className={`canvas-node color-${item.color} ${selected === item.id ? "is-selected" : ""} ${flagged === item.id ? "is-flagged" : ""} ${item.kind === "record" && !ref ? "is-missing" : ""}`} style={{ left: item.x, top: item.y }} tabIndex={0} aria-label={title} onFocus={() => setSelected(item.id)}>
+            const lines = (item.kind === "record" && ref ? 3 : 5) - (title.length > 26 ? 1 : 0); return <article key={item.id} data-node={item.id} className={`canvas-node color-${item.color} ${selected === item.id ? "is-selected" : ""} ${flagged === item.id ? "is-flagged" : ""} ${item.kind === "record" && !ref ? "is-missing" : ""}`} style={{ left: item.x, top: item.y }} tabIndex={0} aria-label={title} onFocus={() => { setSelected(item.id); setShowCanvas(false); }}>
             <span className="node-kind">{item.kind === "note" ? "Note" : `${item.ref.kind}${ref?.key ? ` · ${ref.key}` : ""} · ${ref?.status.replaceAll("_", " ") ?? "unavailable"}`}</span><strong>{title}</strong><p style={{ WebkitLineClamp: lines }}>{item.kind === "note" ? item.text || (editable ? "Add a thought…" : "") : ref?.description ?? "This record is not available in this project."}</p>
             {item.kind === "record" && ref && <a href={`/?item=${encodeURIComponent(`${item.ref.kind}:${item.ref.id}`)}`} onClick={leaveTo}>Open record ↗</a>}
           </article>; })}
@@ -389,20 +390,20 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
         </div>}
         <p className="muted">Connections are authored relationships, not proof of causality.</p>
       </aside>}
+      {!node && showCanvas && <aside className="canvas-inspector" aria-label="Canvas details"><div className="panel-heading"><strong>Canvas</strong><button className="icon-button" aria-label="Close canvas details" onClick={() => setShowCanvas(false)}>×</button></div>
+        {editable ? <fieldset disabled={busy}>
+          <label>Name<input maxLength={80} value={draft.title} placeholder="Required" aria-invalid={!draft.title.trim()} onChange={event => change({ ...draft, title: event.target.value })} /></label>
+          <label>Purpose<textarea rows={5} maxLength={2000} value={draft.description} placeholder="What this canvas is for and how to read it" onChange={event => change({ ...draft, description: event.target.value })} /></label>
+          <label>Shown as<select value={guide ? "guide" : "board"} onChange={event => { const { kind: _kind, order, ...rest } = draft; change(event.target.value === "guide" ? { ...rest, kind: "guide", order: order ?? 1 } : rest); }}><option value="board">Board</option><option value="guide">Guide</option></select></label>
+          {guide && <label>Order<input type="number" min={1} max={999} value={draft.order ?? 1} onChange={event => change({ ...draft, order: Math.min(999, Math.max(1, Math.round(Number(event.target.value) || 1))) })} /></label>}
+        </fieldset> : <div className="inspector-read"><h2>{draft.title}</h2><p className="record-prose">{draft.description || "No description."}</p></div>}
+        {doc.saved && <p className="muted">Revision {doc.saved.revision} · {doc.saved.editorLabel} · {clock(doc.saved.updatedAt)}</p>}
+        <div className="panel-actions"><button className="text-button" onClick={() => void refresh()} disabled={busy} title="Load the latest saved revision. Unsaved changes are combined, not replaced.">{refreshing ? "Refreshing…" : "Refresh"}</button><button className="text-button" onClick={download} title="Download this canvas as a write-canvas JSON file for agents">Download JSON</button></div>
+      </aside>}
     </div>
     <footer className="canvas-footer">
       <button onClick={() => { if (allowLeave(onClose)) onClose(); }} aria-label="Back to all canvases">← Canvases</button>
-      <details ref={details} className="popover canvas-details"><summary title={editable ? "Name, purpose and settings" : "About this canvas"}>{draft.title || "Untitled canvas"}{guide && <span className="guide-badge">Guide{draft.order ? ` ${draft.order}` : ""}</span>}</summary>
-        <div className="popover-panel canvas-panel">
-          {editable ? <fieldset disabled={busy}>
-            <label>Name<input maxLength={80} value={draft.title} placeholder="Required" aria-invalid={!draft.title.trim()} onChange={event => change({ ...draft, title: event.target.value })} /></label>
-            <label>Purpose<textarea rows={3} maxLength={2000} value={draft.description} placeholder="What this canvas is for and how to read it" onChange={event => change({ ...draft, description: event.target.value })} /></label>
-            <div className="form-row"><label>Shown as<select value={guide ? "guide" : "board"} onChange={event => { const { kind: _kind, order, ...rest } = draft; change(event.target.value === "guide" ? { ...rest, kind: "guide", order: order ?? 1 } : rest); }}><option value="board">Board</option><option value="guide">Guide</option></select></label>
-              {guide && <label>Order<input type="number" min={1} max={999} value={draft.order ?? 1} onChange={event => change({ ...draft, order: Math.min(999, Math.max(1, Math.round(Number(event.target.value) || 1))) })} /></label>}</div>
-          </fieldset> : <p className="record-prose">{draft.description || "No description."}</p>}
-          {doc.saved && <p className="muted">Revision {doc.saved.revision} · {doc.saved.editorLabel} · {clock(doc.saved.updatedAt)}</p>}
-          <div className="panel-actions"><button className="text-button" onClick={() => void refresh()} disabled={busy} title="Load the latest saved revision. Unsaved changes are combined, not replaced.">{refreshing ? "Refreshing…" : "Refresh"}</button><button className="text-button" onClick={download} title="Download this canvas as a write-canvas JSON file for agents">Download JSON</button></div>
-        </div></details>
+      <button className="canvas-name" aria-pressed={showCanvas} title={editable ? "Name, purpose and settings" : "About this canvas"} onClick={() => { setSelected(""); setShowCanvas(value => !value); }}>{draft.title || "Untitled canvas"}{guide && <span className="guide-badge">Guide{draft.order ? ` ${draft.order}` : ""}</span>}</button>
       <span className={`save-state ${!editable ? "is-view" : dirty ? kept ? "is-dirty" : "is-risk" : "is-saved"}`} role="status" title={stateDetail}>{state}</span>
       <div className="toolbar-spacer" />
       {editable && <>
