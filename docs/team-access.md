@@ -124,7 +124,7 @@ For legacy proposals without a UUID, inspect the catalog before retrying.
 For Pi, inject the agent variables into the Pi process and load
 `packages/pi-extension/src/index.ts` by absolute path. `ENGINEER_ID` is only a local
 owner-mode label; hosted attribution comes from the token. `/team-memory` reads
-published lessons and `/share-lesson` submits an unpublished candidate. Other
+published lessons. The `share_lesson` tool and `/share-lesson` publish immediately (writer tokens only). Other
 harnesses can use the portable client without installing Pi.
 
 ## Verify, rotate and revoke

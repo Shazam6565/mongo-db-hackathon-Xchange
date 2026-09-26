@@ -4,10 +4,11 @@ import { z } from "zod";
 import { InMemoryCanvasRepository, registerCanvases, type CanvasRepository } from "./canvases.js";
 import { InMemoryTicketRepository, registerTickets, type TicketRepository } from "./tickets.js";
 import {
-  CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, engineerIdFromHeader, type Scope,
+  CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, MemorySearchRequestSchema, composeMemoryQuery, engineerIdFromHeader,
+  type Lesson, type Retrieval, type Scope, type Ticket as TicketRecord,
 } from "@team-memory/contracts";
 import { EVALUATOR_VERSION, compareLesson, loadSuite } from "@team-memory/evaluator";
-import { RepositoryError, type LessonRepository } from "./repository.js";
+import { RepositoryError, type LessonRepository, type LessonSearchResult } from "./repository.js";
 import { createTeamAuthentication, type TeamAuthConfig } from "./auth.js";
 
 export interface AppOptions {
@@ -20,8 +21,13 @@ export interface AppOptions {
   teamAuth?: TeamAuthConfig;
   scope: Scope;
   storage: "memory" | "mongodb";
+  // Model label reported by /v1/memory/search.
+  vector?: { model: string };
   logger?: boolean;
 }
+
+// Memory search only reads, so readers may use it even though it is a POST.
+const READ_ONLY_POSTS = new Set(["/v1/memory/search"]);
 
 function lessonId(params: unknown): string | null {
   if (typeof params !== "object" || !params || !("id" in params) || typeof params.id !== "string" || params.id.length === 0) return null;
@@ -68,7 +74,8 @@ export function buildApp(options: AppOptions) {
           return reply.code(403).send({ error: "State-changing requests must originate from this application." });
         }
         const evaluatorOnly = request.method === "POST" && request.routeOptions.url === "/v1/lessons/:id/evaluate";
-        if (!teamAuth.permits(principal, request.method, evaluatorOnly)) return reply.code(403).send({ error: "This team credential does not permit that operation." });
+        const method = request.method === "POST" && READ_ONLY_POSTS.has(request.routeOptions.url ?? "") ? "GET" : request.method;
+        if (!teamAuth.permits(principal, method, evaluatorOnly)) return reply.code(403).send({ error: "This team credential does not permit that operation." });
         request.headers[ENGINEER_ID_HEADER] = principal.actorId;
         return;
       }
@@ -120,23 +127,72 @@ export function buildApp(options: AppOptions) {
       return { scope: options.scope, lessons, fetchedAt };
     });
 
-    api.post("/lessons", async (request, reply) => {
-      const parsed = CandidateInputSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.code(400).send({ error: "Invalid lesson candidate", issues: parsed.error.issues });
+    // Same published lessons as /memory, ordered by relevance to the ticket and message.
+    // Falls back to publication order when Atlas Vector Search is unavailable
+    // (in-memory storage, index building, rate limits).
+    api.post("/memory/search", async (request, reply) => {
+      const parsed = MemorySearchRequestSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ error: "Invalid memory search", issues: parsed.error.issues });
+      const { query, ticketKey, limit } = parsed.data;
+      const notes: string[] = [];
+      let ticket: TicketRecord | null = null;
+      if (ticketKey) {
+        const wanted = ticketKey.toLowerCase();
+        ticket = (await tickets.list(options.scope)).find((item) => item.key.toLowerCase() === wanted) ?? null;
+        if (!ticket) notes.push(`Ticket ${ticketKey} is not in this project; searched with the message only.`);
       }
-      // Optional for older clients. With a key, an identical retry returns the same candidate.
-      const key = request.headers["idempotency-key"];
-      const operation = key === undefined ? undefined : z.string().uuid().safeParse(key);
-      if (operation && !operation.success) return reply.code(400).send({ error: "Idempotency-Key must be a UUID." });
-      try {
-        const input = teamAuth ? { ...parsed.data, authorId: engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]) } : parsed.data;
-        return reply.code(201).send(await options.repository.propose(options.scope, input, operation?.data));
-      } catch (error) {
-        if (sendRepositoryError(error, reply)) return;
-        throw error;
+      const text = composeMemoryQuery(query, ticket);
+      const result: LessonSearchResult = options.repository.search
+        ? await options.repository.search(options.scope, text, limit)
+        : { available: false, reason: "Vector search requires MongoDB Atlas storage." };
+
+      let lessons: Lesson[];
+      let retrieval: Retrieval;
+      if (result.available) {
+        lessons = result.hits.map((hit) => hit.lesson);
+        retrieval = {
+          mode: "vector", model: options.vector?.model ?? null, ticketKey: ticket?.key ?? null,
+          note: notes.join(" ") || null,
+          scores: result.hits.map((hit) => ({ id: hit.lesson.id, score: Number(hit.score.toFixed(4)) })),
+        };
+      } else {
+        lessons = (await options.repository.list(options.scope, "published")).slice(0, limit);
+        retrieval = {
+          mode: "recent", model: null, ticketKey: ticket?.key ?? null,
+          note: [result.reason, ...notes].join(" "), scores: [],
+        };
       }
+      const fetchedAt = new Date().toISOString();
+      await options.repository.recordConsumption(
+        options.scope,
+        engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]),
+        lessons.map((lesson) => ({ id: lesson.id, version: lesson.version })),
+        fetchedAt,
+      );
+      return { scope: options.scope, lessons, fetchedAt, retrieval };
     });
+
+    // /lessons stores a candidate for the evaluation gate. /lessons/share publishes at once:
+    // agents share what they learn automatically, and every agent receives it on its next message.
+    for (const [url, write] of [["/lessons", "propose"], ["/lessons/share", "share"]] as const) {
+      api.post(url, async (request, reply) => {
+        const parsed = CandidateInputSchema.safeParse(request.body);
+        if (!parsed.success) {
+          return reply.code(400).send({ error: "Invalid lesson candidate", issues: parsed.error.issues });
+        }
+        // Optional for older clients. With a key, an identical retry returns the same lesson.
+        const key = request.headers["idempotency-key"];
+        const operation = key === undefined ? undefined : z.string().uuid().safeParse(key);
+        if (operation && !operation.success) return reply.code(400).send({ error: "Idempotency-Key must be a UUID." });
+        try {
+          const input = teamAuth ? { ...parsed.data, authorId: engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]) } : parsed.data;
+          return reply.code(201).send(await options.repository[write](options.scope, input, operation?.data));
+        } catch (error) {
+          if (sendRepositoryError(error, reply)) return;
+          throw error;
+        }
+      });
+    }
 
     api.post("/lessons/:id/evaluate", async (request, reply) => {
       const id = lessonId(request.params);

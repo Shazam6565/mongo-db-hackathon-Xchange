@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "tsx watch src/server.ts", "start": "tsx src/server.ts", "seed": "tsx src/seed.ts" },
+  "scripts": { "dev": "tsx watch src/server.ts", "start": "tsx src/server.ts", "seed": "tsx src/seed.ts", "vector:setup": "tsx src/vector-setup.ts" },
   "dependencies": {
     "@team-memory/contracts": "0.1.0",
     "@team-memory/evaluator": "0.1.0",

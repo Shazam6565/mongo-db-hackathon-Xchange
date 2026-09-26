@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { MongoClient, type Collection } from "mongodb";
-import type {
-  AuditEvent, CandidateInput, EvaluationResult, EvaluationScores, Lesson, LessonVersionRef, Scope,
+import {
+  lessonSearchText,
+  type AuditEvent, type CandidateInput, type EvaluationResult, type EvaluationScores, type Lesson, type LessonVersionRef, type Scope,
 } from "@team-memory/contracts";
 import { stableUuid } from "./ids.js";
 
@@ -14,12 +15,29 @@ export class RepositoryError extends Error {
   }
 }
 
+export interface VectorSettings {
+  index: string;
+  model: string;
+}
+
+export type LessonSearchResult =
+  | { available: true; hits: { lesson: Lesson; score: number }[] }
+  | { available: false; reason: string };
+
+// Lessons as stored in MongoDB. searchText feeds Atlas Automated Embedding and is never returned.
+type StoredLesson = Lesson & { searchText?: string };
+const HIDDEN_FIELDS = { _id: 0, searchText: 0 } as const;
+
 export interface LessonRepository {
   list(scope: Scope, status?: Lesson["status"]): Promise<Lesson[]>;
+  // Semantic retrieval over published lessons in scope. Only the Atlas repository implements it.
+  search?(scope: Scope, text: string, limit: number): Promise<LessonSearchResult>;
   get(scope: Scope, id: string): Promise<Lesson | null>;
   // With an ID (the request's Idempotency-Key), repeating an identical proposal returns the
   // existing candidate; reusing the ID for different content is a 409.
   propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson>;
+  // Same as propose, but the lesson is published at once for every agent (no evaluation gate).
+  share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson>;
   commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores): Promise<{ lesson: Lesson; evaluation: EvaluationResult }>;
   recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string): Promise<void>;
   listEvaluations(scope: Scope): Promise<EvaluationResult[]>;
@@ -90,6 +108,15 @@ function proposalEvent(lesson: Lesson): AuditEvent {
   };
 }
 
+// A lesson shared by an agent is published immediately, without the evaluation gate.
+function sharedEvent(lesson: Lesson): AuditEvent {
+  const scope = { teamId: lesson.teamId, projectId: lesson.projectId };
+  return {
+    ...auditEvent(scope, "lesson.published", lesson.id, lesson.version, lesson.authorId, lesson.createdAt, `Shared ${lesson.title} without evaluation`),
+    id: stableUuid("lesson.shared", lesson.id, String(lesson.version)),
+  };
+}
+
 function evaluationEvents(scope: Scope, lesson: Lesson, scores: EvaluationScores, at: string, status: Lesson["status"] | null): AuditEvent[] {
   const events = [auditEvent(
     scope, "lesson.evaluated", lesson.id, lesson.version, "evaluator", at,
@@ -147,6 +174,15 @@ export class InMemoryLessonRepository implements LessonRepository {
     return structuredClone(candidate);
   }
 
+  async share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
+    const existing = id ? this.lessons.find((item) => item.id === id) : undefined;
+    if (existing) return structuredClone(sameProposal(existing, scope, input));
+    const lesson: Lesson = { ...makeCandidate(scope, input, id), status: "published" };
+    this.lessons.push(lesson);
+    this.audit.push(proposalEvent(lesson), sharedEvent(lesson));
+    return structuredClone(lesson);
+  }
+
   async commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores) {
     const index = this.lessons.findIndex((item) => item.id === lessonId && item.teamId === scope.teamId && item.projectId === scope.projectId);
     const current = requireCandidate(this.lessons[index] ?? null, expectedVersion);
@@ -186,19 +222,22 @@ export class InMemoryLessonRepository implements LessonRepository {
 }
 
 export class MongoLessonRepository implements LessonRepository {
+  private readiness: { ready: boolean; checkedAt: number } | null = null;
+
   private constructor(
     private readonly client: MongoClient,
-    private readonly lessons: Collection<Lesson>,
+    private readonly lessons: Collection<StoredLesson>,
     private readonly evaluations: Collection<EvaluationResult>,
     private readonly audit: Collection<AuditEvent>,
+    private readonly vector: VectorSettings | null,
   ) {}
 
-  static async connect(uri: string, database: string): Promise<MongoLessonRepository> {
+  static async connect(uri: string, database: string, vector?: VectorSettings): Promise<MongoLessonRepository> {
     const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000, maxPoolSize: 5, waitQueueTimeoutMS: 5000 });
     try {
       await client.connect();
       const db = client.db(database);
-      const lessons = db.collection<Lesson>("lessons");
+      const lessons = db.collection<StoredLesson>("lessons");
       const evaluations = db.collection<EvaluationResult>("evaluations");
       const audit = db.collection<AuditEvent>("audit_events");
       await lessons.createIndex({ id: 1 }, { unique: true });
@@ -207,7 +246,7 @@ export class MongoLessonRepository implements LessonRepository {
       await evaluations.createIndex({ teamId: 1, projectId: 1, lessonId: 1, createdAt: -1 });
       await audit.createIndex({ id: 1 }, { unique: true });
       await audit.createIndex({ teamId: 1, projectId: 1, at: -1 });
-      return new MongoLessonRepository(client, lessons, evaluations, audit);
+      return new MongoLessonRepository(client, lessons, evaluations, audit, vector ?? null);
     } catch (error) {
       await client.close();
       throw error;
@@ -217,26 +256,87 @@ export class MongoLessonRepository implements LessonRepository {
   async list(scope: Scope, status?: Lesson["status"]): Promise<Lesson[]> {
     return this.lessons.find(
       { ...scope, ...(status ? { status } : {}) },
-      { projection: { _id: 0 } },
+      { projection: HIDDEN_FIELDS },
     ).sort({ updatedAt: -1 }).limit(100).toArray();
   }
 
   async get(scope: Scope, id: string): Promise<Lesson | null> {
-    return this.lessons.findOne({ ...scope, id }, { projection: { _id: 0 } });
+    return this.lessons.findOne({ ...scope, id }, { projection: HIDDEN_FIELDS });
+  }
+
+  // An Atlas index can exist but still be building. Cache the answer briefly so each
+  // agent message does not pay for an extra index listing.
+  private async indexReady(index: string): Promise<boolean> {
+    const now = Date.now();
+    if (this.readiness && now - this.readiness.checkedAt < (this.readiness.ready ? 60_000 : 10_000)) return this.readiness.ready;
+    const [found] = await this.lessons.listSearchIndexes(index).toArray() as { queryable?: boolean; status?: string }[];
+    const ready = Boolean(found && (found.queryable === true || found.status === "READY"));
+    this.readiness = { ready, checkedAt: now };
+    return ready;
+  }
+
+  async search(scope: Scope, text: string, limit: number): Promise<LessonSearchResult> {
+    if (!this.vector) return { available: false, reason: "Vector search is not configured for this API." };
+    const { index } = this.vector;
+    try {
+      if (!(await this.indexReady(index))) {
+        return { available: false, reason: `Atlas Vector Search index "${index}" is missing or still building. Run npm run vector:setup.` };
+      }
+    } catch {
+      return { available: false, reason: "Could not check the Atlas Vector Search index." };
+    }
+    try {
+      const docs = await this.lessons.aggregate<Lesson & { score: number }>([
+        {
+          $vectorSearch: {
+            index,
+            path: "searchText",
+            // Automated Embedding: Atlas embeds this text with the index's Voyage model.
+            query: { text },
+            numCandidates: Math.max(50, limit * 10),
+            limit,
+            // Pre-filter inside the vector search so other projects and unpublished lessons are never ranked.
+            filter: { $and: [
+              { teamId: { $eq: scope.teamId } },
+              { projectId: { $eq: scope.projectId } },
+              { status: { $eq: "published" } },
+            ] },
+          },
+        },
+        { $set: { score: { $meta: "vectorSearchScore" } } },
+        { $unset: ["_id", "searchText"] },
+      ]).toArray();
+      return { available: true, hits: docs.map(({ score, ...lesson }) => ({ lesson, score })) };
+    } catch (error) {
+      // Includes Automated Embedding rate limits. The caller falls back to recent lessons.
+      this.readiness = null;
+      const detail = error instanceof Error ? error.message.replace(/\s+/g, " ").slice(0, 160) : "unknown error";
+      return { available: false, reason: `Atlas Vector Search failed: ${detail}` };
+    }
   }
 
   async propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
-    const candidate = makeCandidate(scope, input, id);
-    // Both writes are keyed upserts: a retry with the same ID completes a partial proposal
-    // instead of creating a second candidate or a second audit event.
-    try { await this.lessons.updateOne({ id: candidate.id }, { $setOnInsert: { ...candidate } }, { upsert: true }); }
+    return this.insert(scope, input, id, "candidate");
+  }
+
+  async share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
+    return this.insert(scope, input, id, "published");
+  }
+
+  private async insert(scope: Scope, input: CandidateInput, id: string | undefined, status: "candidate" | "published"): Promise<Lesson> {
+    const lesson: Lesson = { ...makeCandidate(scope, input, id), status };
+    // All writes are keyed upserts: a retry with the same ID completes a partial write
+    // instead of creating a second lesson or a second audit event.
+    // searchText is written with the lesson so Atlas embeds it without a separate pipeline.
+    try { await this.lessons.updateOne({ id: lesson.id }, { $setOnInsert: { ...lesson, searchText: lessonSearchText(lesson) } }, { upsert: true }); }
     catch (error) { if (!isDuplicateKey(error)) throw error; }
-    const found = await this.lessons.findOne({ id: candidate.id }, { projection: { _id: 0 } });
+    const found = await this.lessons.findOne({ id: lesson.id }, { projection: HIDDEN_FIELDS });
     if (!found) throw new RepositoryError("The proposal could not be confirmed. Retry with the same Idempotency-Key.", 503);
     const stored = sameProposal(found, scope, input);
-    const event = proposalEvent(stored);
-    try { await this.audit.updateOne({ id: event.id }, { $setOnInsert: { ...event } }, { upsert: true }); }
-    catch (error) { if (!isDuplicateKey(error)) throw error; }
+    for (const event of status === "published" ? [proposalEvent(stored), sharedEvent(stored)] : [proposalEvent(stored)]) {
+      try { await this.audit.updateOne({ id: event.id }, { $setOnInsert: { ...event } }, { upsert: true }); }
+      catch (error) { if (!isDuplicateKey(error)) throw error; }
+    }
     return stored;
   }
 
@@ -246,7 +346,7 @@ export class MongoLessonRepository implements LessonRepository {
       let committed: { lesson: Lesson; evaluation: EvaluationResult } | undefined;
       await session.withTransaction(async () => {
         const current = requireCandidate(
-          await this.lessons.findOne({ ...scope, id: lessonId }, { session, projection: { _id: 0 } }),
+          await this.lessons.findOne({ ...scope, id: lessonId }, { session, projection: HIDDEN_FIELDS }),
           expectedVersion,
         );
         const at = new Date().toISOString();

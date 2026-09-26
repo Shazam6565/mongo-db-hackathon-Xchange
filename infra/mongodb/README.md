@@ -26,13 +26,27 @@ its evaluation, and its audit events uses one MongoDB transaction, which needs a
 `harness_versions` remains a design placeholder: a published lesson does not activate tools or
 instructions inside Pi.
 
-## Vector Search — planned
+## Vector Search — Automated Embedding
 
-Choose an embedding provider/model first. Create an Atlas Vector Search index on `embedding`
-with the model's exact dimensions and similarity function. Add filter fields `teamId`,
-`projectId`, and `status`. Generate ticket and lesson embeddings using the same model.
-Query only the authenticated scope with `status=published`, then check component/code-version
-compatibility. No vector index or model is silently provisioned by this repository.
+Every agent gets the same published lessons. Vector search only orders them, most relevant
+to the current ticket and message first. Each lesson document stores a server-only `searchText`
+field (title, lesson, applicability, instructions, verification steps), which API responses omit.
+The `lessons_vector` index embeds that field with Atlas
+[Automated Embedding](https://www.mongodb.com/docs/vector-search/crud-embeddings/automated-embedding)
+and a Voyage AI model (`voyage-4` by default). Atlas creates embeddings when documents are written
+and when queries run, so the API holds no model key. The feature is in Preview.
+
+```bash
+npm run vector:setup                    # backfill searchText, create or update the index
+npm run vector:setup -- --wait          # also wait until the index is queryable
+npm run vector:setup -- --probe "text"  # also print the order and scores for a query
+```
+
+`POST /v1/memory/search` runs `$vectorSearch` with `query.text` and a pre-filter on `teamId`,
+`projectId` and `status: "published"`. If the index is missing or still building, or the query fails
+(for example, M0 query rate limits of about 3 requests per minute), it returns the same lessons
+in publication order and gives the reason in `retrieval.note`.
+Optional settings: `VECTOR_INDEX_NAME`, `EMBEDDING_MODEL`.
 
 ## Change Streams — planned
 

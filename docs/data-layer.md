@@ -52,7 +52,7 @@ All writes go through the API, which owns the database credentials and the scope
 | --- | --- |
 | Dashboard (`npm run dev`) | Tickets (Add ticket), activity records (New record), canvases, running Evaluate on a candidate |
 | Agent skill: `node skills/team-memory/scripts/client.mjs …` | Scripted or agent writes: lesson proposals, activity records, canvases. See `skills/team-memory/SKILL.md` for the commands |
-| Pi extension: `/share-lesson Title \| Lesson \| TICKET` | Proposing a lesson from inside a Pi session |
+| Pi extension: `share_lesson` tool (automatic) or `/share-lesson Title \| Lesson \| TICKET` | Publishing a lesson from inside a Pi session, immediately and without evaluation |
 | A corpus file plus `npm run seed` | Bulk or reviewed starting data |
 
 Every create request should carry a UUID `Idempotency-Key`. Retrying the identical request with
