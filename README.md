@@ -16,6 +16,9 @@ For teammates and agents joining the shared workspace, start with
 permissions, browser sign-in, agent read/write commands, rotation and revocation.
 The maintained [project operating skills](skills/README.md) cover access, records,
 canvases, memory, evaluation, data setup and hosting, discoverable from a fresh clone.
+For Codex and Phoenix MCP, use the [Xchange plugin and integration guide](docs/mcp-plugin.md).
+The repo owns the portable plugin, 14 typed tools, stdio bundle and authenticated
+`/mcp` endpoint; installation and Phoenix credential/grant binding are separate.
 
 ## Repository status
 
@@ -38,6 +41,7 @@ This is a **runnable skeleton, not the finished learning system**.
 | Live synchronization through Change Streams and SSE | Design only; refresh is currently per run/manual |
 | Individual team grants, roles and browser sessions | Implemented with local security checks; real member enrollment pending |
 | Private credential issuance and authenticated access checks | Implemented; run `npm run access:issue -- --help` and follow the onboarding guide |
+| OpenAI-compatible plugin and MCP tools | Implemented and locally verified; [package and Phoenix setup](docs/mcp-plugin.md) |
 | Vercel live UI and server API | Deployment configuration implemented; remote deployment and Atlas route unverified |
 
 No LLM calls or paid cloud resources are created by `npm run dev` or `npm run evaluate`. The single published lesson

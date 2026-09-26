@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "xchange": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./dist/stdio.mjs"],
+      "cwd": ".",
+      "env_vars": [
+        "TEAM_API_URL",
+        "TEAM_API_TOKEN",
+        "TEAM_EXPECTED_TEAM_ID",
+        "TEAM_EXPECTED_PROJECT_ID"
+      ]
+    }
+  }
+}
