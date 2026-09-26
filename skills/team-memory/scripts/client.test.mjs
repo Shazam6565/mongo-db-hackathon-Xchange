@@ -58,3 +58,34 @@ test("the discoverable skill symlink still executes the client and fails closed 
   assert.match(result.stderr, /Configure TEAM_API_TOKEN privately/);
   assert.equal(result.stdout, "");
 });
+
+test("operator commands preserve explicit versions, stay on scoped routes, and never retry denied writes", async () => {
+  for (const [args, route, method, body] of [
+    [["lesson", "lesson-1"], "/v1/lessons/lesson-1", "GET", undefined],
+    [["ticket", "ticket-1"], "/v1/tickets/ticket-1", "GET", undefined],
+    [["evaluations"], "/v1/evaluations", "GET", undefined],
+    [["audit"], "/v1/audit", "GET", undefined],
+    [["evaluate", "lesson-1", "2"], "/v1/lessons/lesson-1/evaluate", "POST", { expectedVersion: 2 }],
+    [["rollback", "lesson-1", "0"], "/v1/harness/rollback", "POST", { lessonId: "lesson-1", expectedVersion: 0 }],
+  ]) {
+    let calls = 0;
+    await run(args, env, async (url, options) => {
+      calls++;
+      assert.equal(url.pathname, route); assert.equal(options.method, method);
+      assert.equal(options.headers.authorization, `Bearer ${env.TEAM_API_TOKEN}`);
+      assert.deepEqual(options.body ? JSON.parse(options.body) : undefined, body);
+      return Response.json({ ok: true });
+    });
+    assert.equal(calls, 1);
+  }
+  for (const args of [["evaluate", "lesson-1", "0"], ["evaluate", "lesson-1"], ["rollback", "lesson-1", "-1"], ["rollback", "lesson-1", "1.5"], ["rollback", "lesson-1", "9007199254740992"], ["lesson", "../audit"], ["ticket", ".."]]) {
+    await assert.rejects(run(args, env, () => assert.fail("Invalid input must not reach the API")));
+  }
+  for (const status of [401, 403, 409, 503]) {
+    let calls = 0;
+    await assert.rejects(run(["evaluate", "lesson-1", "2"], env, async () => {
+      calls++; return Response.json({ error: "rejected" }, { status });
+    }));
+    assert.equal(calls, 1);
+  }
+});

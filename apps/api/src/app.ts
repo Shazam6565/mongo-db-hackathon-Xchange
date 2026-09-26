@@ -6,8 +6,9 @@ import { InMemoryTicketRepository, registerTickets, type TicketRepository } from
 import {
   CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, MemorySearchRequestSchema, composeMemoryQuery, engineerIdFromHeader,
   type Lesson, type Retrieval, type Scope, type Ticket as TicketRecord,
-} from "@team-memory/contracts";
-import { EVALUATOR_VERSION, compareLesson, loadSuite } from "@team-memory/evaluator";
+} from "../../../packages/contracts/src/index.js";
+import { EVALUATOR_VERSION, compareLesson, loadSuite } from "../../evaluator/src/compare.js";
+import { HarnessRollbackSchema } from "../../../packages/contracts/src/harness.js";
 import { RepositoryError, type LessonRepository, type LessonSearchResult } from "./repository.js";
 import { createTeamAuthentication, type TeamAuthConfig } from "./auth.js";
 
@@ -73,7 +74,9 @@ export function buildApp(options: AppOptions) {
         if (principal.via === "cookie" && !["GET", "HEAD", "OPTIONS"].includes(request.method) && !teamAuth.sameOrigin(request)) {
           return reply.code(403).send({ error: "State-changing requests must originate from this application." });
         }
-        const evaluatorOnly = request.method === "POST" && request.routeOptions.url === "/v1/lessons/:id/evaluate";
+        // Evaluated publishing and rollback are evaluator-only. Agents' /lessons/share is the
+        // deliberate exception: writers publish what they learn without review.
+        const evaluatorOnly = request.method === "POST" && ["/v1/lessons/:id/evaluate", "/v1/harness/rollback"].includes(request.routeOptions.url ?? "");
         const method = request.method === "POST" && READ_ONLY_POSTS.has(request.routeOptions.url ?? "") ? "GET" : request.method;
         if (!teamAuth.permits(principal, method, evaluatorOnly)) return reply.code(403).send({ error: "This team credential does not permit that operation." });
         request.headers[ENGINEER_ID_HEADER] = principal.actorId;
@@ -114,21 +117,53 @@ export function buildApp(options: AppOptions) {
       events: await options.repository.listAudit(options.scope),
     }));
 
-    api.get("/memory", async (request) => {
-      const lessons = (await options.repository.list(options.scope, "published")).slice(0, 10);
+    // Memory is the active harness version's lessons: a rolled-back lesson stops reaching agents.
+    // Context injection keeps the ten most recent; skill sync loads the whole version.
+    async function loadActive(request: { headers: Record<string, string | string[] | undefined> }, limit: number) {
+      const active = await options.repository.activeHarness(options.scope);
+      const lessons = active.lessons.slice(0, limit);
       const fetchedAt = new Date().toISOString();
-      const engineerId = engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]);
       await options.repository.recordConsumption(
         options.scope,
-        engineerId,
+        engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]),
         lessons.map((lesson) => ({ id: lesson.id, version: lesson.version })),
         fetchedAt,
+        active.version,
       );
-      return { scope: options.scope, lessons, fetchedAt };
+      return { ...active, lessons, fetchedAt };
+    }
+
+    api.get("/memory", async (request) => {
+      const { lessons, fetchedAt, version } = await loadActive(request, 10);
+      return { scope: options.scope, lessons, fetchedAt, harnessVersion: version };
     });
 
-    // Same published lessons as /memory, ordered by relevance to the ticket and message.
-    // Falls back to publication order when Atlas Vector Search is unavailable
+    api.get("/harness/active", async (request) => {
+      const { version, versionId, lessons, fetchedAt } = await loadActive(request, 100);
+      return { scope: options.scope, version, versionId, lessons, fetchedAt };
+    });
+
+    // Inspection only: references and history, not recorded as consumption.
+    api.get("/harness", async () => {
+      const [active, versions] = await Promise.all([options.repository.activeHarness(options.scope), options.repository.harnessHistory(options.scope)]);
+      return { scope: options.scope, version: active.version, versionId: active.versionId,
+        lessons: active.lessons.map((lesson) => ({ id: lesson.id, version: lesson.version })), versions };
+    });
+
+    api.post("/harness/rollback", async (request, reply) => {
+      const parsed = HarnessRollbackSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ error: "Provide expectedVersion and lessonId.", issues: parsed.error.issues });
+      try {
+        const actorId = engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]);
+        return await options.repository.rollbackLesson(options.scope, parsed.data.expectedVersion, parsed.data.lessonId, actorId);
+      } catch (error) {
+        if (sendRepositoryError(error, reply)) return;
+        throw error;
+      }
+    });
+
+    // The active harness version's lessons, like /memory, ordered by relevance to the ticket and
+    // message. Falls back to recency when Atlas Vector Search is unavailable
     // (in-memory storage, index building, rate limits).
     api.post("/memory/search", async (request, reply) => {
       const parsed = MemorySearchRequestSchema.safeParse(request.body);
@@ -141,22 +176,31 @@ export function buildApp(options: AppOptions) {
         ticket = (await tickets.list(options.scope)).find((item) => item.key.toLowerCase() === wanted) ?? null;
         if (!ticket) notes.push(`Ticket ${ticketKey} is not in this project; searched with the message only.`);
       }
+      const active = await options.repository.activeHarness(options.scope);
       const text = composeMemoryQuery(query, ticket);
-      const result: LessonSearchResult = options.repository.search
-        ? await options.repository.search(options.scope, text, limit)
-        : { available: false, reason: "Vector search requires MongoDB Atlas storage." };
+      // Rank across the whole published set, then keep only the active version's lessons.
+      const result: LessonSearchResult = !options.repository.search
+        ? { available: false, reason: "Vector search requires MongoDB Atlas storage." }
+        : active.lessons.length === 0
+          ? { available: true, hits: [] }
+          : await options.repository.search(options.scope, text, 100);
 
       let lessons: Lesson[];
       let retrieval: Retrieval;
       if (result.available) {
-        lessons = result.hits.map((hit) => hit.lesson);
+        const byId = new Map(active.lessons.map((lesson) => [lesson.id, lesson]));
+        const hits = result.hits.filter((hit) => byId.has(hit.lesson.id));
+        const ranked = new Set(hits.map((hit) => hit.lesson.id));
+        // Active lessons Atlas has not embedded yet still reach the agent, after the ranked ones.
+        lessons = [...hits.map((hit) => byId.get(hit.lesson.id)!), ...active.lessons.filter((lesson) => !ranked.has(lesson.id))].slice(0, limit);
         retrieval = {
           mode: "vector", model: options.vector?.model ?? null, ticketKey: ticket?.key ?? null,
           note: notes.join(" ") || null,
-          scores: result.hits.map((hit) => ({ id: hit.lesson.id, score: Number(hit.score.toFixed(4)) })),
+          scores: hits.filter((hit) => lessons.some((lesson) => lesson.id === hit.lesson.id))
+            .map((hit) => ({ id: hit.lesson.id, score: Number(hit.score.toFixed(4)) })),
         };
       } else {
-        lessons = (await options.repository.list(options.scope, "published")).slice(0, limit);
+        lessons = active.lessons.slice(0, limit);
         retrieval = {
           mode: "recent", model: null, ticketKey: ticket?.key ?? null,
           note: [result.reason, ...notes].join(" "), scores: [],
@@ -168,8 +212,9 @@ export function buildApp(options: AppOptions) {
         engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]),
         lessons.map((lesson) => ({ id: lesson.id, version: lesson.version })),
         fetchedAt,
+        active.version,
       );
-      return { scope: options.scope, lessons, fetchedAt, retrieval };
+      return { scope: options.scope, lessons, fetchedAt, retrieval, harnessVersion: active.version };
     });
 
     // /lessons stores a candidate for the evaluation gate. /lessons/share publishes at once:

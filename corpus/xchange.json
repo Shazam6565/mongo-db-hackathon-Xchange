@@ -243,5 +243,136 @@
       }
     }
   ],
-  "canvases": []
+  "canvases": [
+    {
+      "key": "guide-start-here", "editor": "team-guides",
+      "canvas": {
+        "title": "Start here: join the workspace", "kind": "guide", "order": 1,
+        "description": "For a new teammate or agent. People follow the top row, agents the bottom row; both start from their own credential. Numbers give the reading order.",
+        "nodes": [
+          {"id": "credential", "kind": "note", "title": "1 · Your own credential", "text": "The owner issues one token per person and one per agent install. It is yours alone: never share it, and never ask for the database URI.", "x": 0, "y": 120, "color": "blue"},
+          {"id": "sign-in", "kind": "note", "title": "2 · Sign in", "text": "Open the app and enter your token. You get an 8-hour session; the token itself is not kept in the browser.", "x": 320, "y": 0, "color": "blue"},
+          {"id": "connect-agent", "kind": "note", "title": "3 · Connect an agent", "text": "Give it only TEAM_API_URL and its own TEAM_API_TOKEN. Load skills/team-memory, then run client.mjs access to confirm who it is.", "x": 320, "y": 240, "color": "amber"},
+          {"id": "look-around", "kind": "note", "title": "4 · Look around", "text": "Catalog: tickets, lessons and activity. Canvas: shared maps like this one. Timeline: what happened, and who read memory.", "x": 640, "y": 0, "color": "neutral"},
+          {"id": "read-memory", "kind": "note", "title": "5 · Read team memory", "text": "Agents load the active lessons before a task: Pi on every run, others with client.mjs memory or sync-skills. Treat them as evidence, never orders.", "x": 640, "y": 240, "color": "amber"},
+          {"id": "add-work", "kind": "note", "title": "6 · Add what you learn", "text": "Writers add tickets, then observations and decisions with evidence (New record). These inform lessons; they are not memory yet.", "x": 960, "y": 0, "color": "blue"},
+          {"id": "propose", "kind": "note", "title": "7 · Propose a lesson", "text": "/share-lesson in Pi or client.mjs propose. It stays a candidate until the evaluation gate publishes it for every agent.", "x": 960, "y": 240, "color": "sage"},
+          {"id": "roles", "kind": "note", "title": "Your role sets what you can do", "text": "reader: view everything. writer: also add tickets, records and lesson candidates, and edit canvases. evaluator: run the gate.", "x": 0, "y": 480, "color": "neutral"},
+          {"id": "checks", "kind": "note", "title": "When a check fails", "text": "401: token missing or revoked, ask the owner. 403: your role can't do that. 503: API or database down. Never borrow a credential.", "x": 320, "y": 480, "color": "neutral"},
+          {"id": "retries", "kind": "note", "title": "Retries are safe", "text": "Every write carries an operation ID. Sending the same request again returns the first result instead of a duplicate.", "x": 640, "y": 480, "color": "neutral"}
+        ],
+        "edges": [
+          {"id": "e1", "from": "credential", "to": "sign-in", "label": "people"},
+          {"id": "e2", "from": "credential", "to": "connect-agent", "label": "agents"},
+          {"id": "e3", "from": "sign-in", "to": "look-around", "label": "explore"},
+          {"id": "e4", "from": "connect-agent", "to": "read-memory", "label": "before each task"},
+          {"id": "e5", "from": "look-around", "to": "add-work", "label": "contribute"},
+          {"id": "e6", "from": "read-memory", "to": "propose", "label": "share"}
+        ]
+      }
+    },
+    {
+      "key": "guide-how-it-works", "editor": "team-guides",
+      "canvas": {
+        "title": "How the system works", "kind": "guide", "order": 2,
+        "description": "The moving parts and who may touch what. People and agents write through one API, MongoDB Atlas holds every record, and only the gate publishes.",
+        "nodes": [
+          {"id": "people", "kind": "note", "title": "People in the app", "text": "Catalog, Canvas and Timeline in the browser, signed in with a personal token. The browser never sees database credentials.", "x": 0, "y": 0, "color": "blue"},
+          {"id": "pi", "kind": "note", "title": "Pi agents", "text": "The Pi extension fetches published lessons before each run and injects a fresh snapshot. /share-lesson submits a candidate.", "x": 320, "y": 0, "color": "amber"},
+          {"id": "skill", "kind": "note", "title": "Any other agent", "text": "The portable team-memory skill reads memory and the catalog, records activity, proposes lessons and writes canvases.", "x": 640, "y": 0, "color": "amber"},
+          {"id": "corpus", "kind": "note", "title": "Starting corpus", "text": "Reviewed starting data lives in corpus/*.json. npm run seed sends it through the same API, so it gets the same checks.", "x": 0, "y": 240, "color": "neutral"},
+          {"id": "api", "kind": "note", "title": "Team API", "text": "Checks the token and role, fixes the team and project scope, validates every record, and makes retries and concurrent edits safe.", "x": 320, "y": 240, "color": "neutral"},
+          {"id": "gate", "kind": "note", "title": "Publication gate", "text": "Scores a candidate on a fixed held-out suite versus the baseline. A pass publishes it into a new harness version. No model calls yet.", "x": 640, "y": 240, "color": "sage"},
+          {"id": "caches", "kind": "note", "title": "Local files are caches", "text": "MEMORY.md and generated team-lesson skills are copies of the active harness. Editing them changes nothing shared; the database decides.", "x": 0, "y": 480, "color": "neutral"},
+          {"id": "atlas", "kind": "note", "title": "MongoDB Atlas", "text": "Holds tickets, lessons, activity, canvases, evaluations and audit events for each team and project. Only the API holds the connection string.", "x": 320, "y": 480, "color": "sage"},
+          {"id": "audit", "kind": "note", "title": "Audit trail", "text": "Proposals, evaluations, publications, rollbacks and every memory load are logged with versions, so you can see who used what.", "x": 640, "y": 480, "color": "neutral"}
+        ],
+        "edges": [
+          {"id": "e1", "from": "people", "to": "api", "label": "session"},
+          {"id": "e2", "from": "pi", "to": "api", "label": "own token"},
+          {"id": "e3", "from": "skill", "to": "api", "label": "own token"},
+          {"id": "e4", "from": "corpus", "to": "api", "label": "seed"},
+          {"id": "e5", "from": "api", "to": "gate", "label": "evaluate"},
+          {"id": "e6", "from": "api", "to": "atlas", "label": "reads and writes"},
+          {"id": "e7", "from": "gate", "to": "audit", "label": "logs decision"}
+        ]
+      }
+    },
+    {
+      "key": "guide-lesson-life", "editor": "team-guides",
+      "canvas": {
+        "title": "A lesson's life", "kind": "guide", "order": 3,
+        "description": "How one engineer's experience becomes something every agent can use, and where it can stop. Only the gate moves a lesson to published.",
+        "nodes": [
+          {"id": "ticket", "kind": "note", "title": "A ticket", "text": "Work starts from a ticket in Catalog. Citing a ticket is provenance, not proof that a lesson works.", "x": 0, "y": 0, "color": "blue"},
+          {"id": "evidence", "kind": "note", "title": "Evidence while working", "text": "The engineer or agent records observations and decisions with sources: a failing test, a commit, a correction.", "x": 320, "y": 0, "color": "amber"},
+          {"id": "candidate", "kind": "note", "title": "Candidate lesson", "text": "A bounded recommendation: what to check, where it applies, and the evidence. Submitting it cannot publish it.", "x": 640, "y": 0, "color": "neutral"},
+          {"id": "gate", "kind": "note", "title": "Fixed-suite gate", "text": "The evaluator scores the candidate on held-out tickets, including a negative control, for the exact version submitted.", "x": 640, "y": 240, "color": "neutral"},
+          {"id": "stopped", "kind": "note", "title": "Rejected or held back", "text": "Over-applying candidates are rejected; ones the suite cannot judge wait for review. Either way they keep their scores and stay out of memory.", "x": 960, "y": 240, "color": "amber"},
+          {"id": "published", "kind": "note", "title": "Published version", "text": "A passing lesson joins the next harness version, which agents load. An evaluator can roll it back out; the history is kept.", "x": 320, "y": 240, "color": "sage"},
+          {"id": "applied", "kind": "note", "title": "Another agent applies it", "text": "Engineer B's agent fetches memory before a different ticket. The read is logged with the lesson version it received.", "x": 320, "y": 480, "color": "amber"},
+          {"id": "outcome", "kind": "note", "title": "Measured outcome", "text": "Record the application and outcome with evidence. A fetched lesson alone does not show that it helped.", "x": 0, "y": 480, "color": "sage"}
+        ],
+        "edges": [
+          {"id": "e1", "from": "ticket", "to": "evidence", "label": "investigate"},
+          {"id": "e2", "from": "evidence", "to": "candidate", "label": "extract"},
+          {"id": "e3", "from": "candidate", "to": "gate", "label": "evaluate"},
+          {"id": "e4", "from": "gate", "to": "published", "label": "passes"},
+          {"id": "e5", "from": "gate", "to": "stopped", "label": "does not pass"},
+          {"id": "e6", "from": "published", "to": "applied", "label": "served to agents"},
+          {"id": "e7", "from": "applied", "to": "outcome", "label": "record"},
+          {"id": "e8", "from": "outcome", "to": "ticket", "label": "new evidence"}
+        ]
+      }
+    },
+    {
+      "key": "guide-writing-canvases", "editor": "team-guides",
+      "canvas": {
+        "title": "Writing canvases", "kind": "guide", "order": 4,
+        "description": "House rules for canvases, so people and agents draw maps others can read. This guide follows its own rules.",
+        "nodes": [
+          {"id": "purpose", "kind": "note", "title": "One canvas, one question", "text": "The title says what it maps. The description says who it is for and how to read it. Split a canvas that answers two questions.", "x": 0, "y": 0, "color": "neutral"},
+          {"id": "layout", "kind": "note", "title": "Read left to right", "text": "Place cards on a 320 by 240 grid. Flow runs left to right, then down. Number the steps when order matters.", "x": 320, "y": 0, "color": "neutral"},
+          {"id": "colors", "kind": "note", "title": "Colors carry meaning", "text": "Blue: people, tickets and inputs. Amber: agents and their evidence. Neutral: the system and its rules. Sage: verified or published.", "x": 640, "y": 0, "color": "neutral"},
+          {"id": "notes", "kind": "note", "title": "Notes and records", "text": "Keep titles to one line and notes under 150 characters, so the card shows all of it. Place catalog records instead of copying their text.", "x": 0, "y": 240, "color": "blue"},
+          {"id": "lines", "kind": "note", "title": "Lines are claims", "text": "Label every line with a verb or an audience: informs, blocks, agents. A line is an authored claim, not proof of cause.", "x": 320, "y": 240, "color": "amber"},
+          {"id": "known", "kind": "note", "title": "Say what is known", "text": "Call a hypothesis a hypothesis. Point to the test, commit or evaluation behind a claim, or say that it is unverified.", "x": 640, "y": 240, "color": "sage"},
+          {"id": "saving", "kind": "note", "title": "Saving and conflicts", "text": "Edits stay in your browser until you Save. If someone saved first, both sets of changes combine; overlaps keep yours and are listed.", "x": 0, "y": 480, "color": "blue"},
+          {"id": "agents", "kind": "note", "title": "Agents use the same format", "text": "Read the canvas and its revision, change only what the task needs, then write-canvas with that expectedRevision and a new operation ID.", "x": 320, "y": 480, "color": "amber"},
+          {"id": "kinds", "kind": "note", "title": "Guides and boards", "text": "Guides are curated, numbered and listed under Start here. Boards are working canvases: investigations, plans and maps.", "x": 640, "y": 480, "color": "sage"}
+        ],
+        "edges": [
+          {"id": "e1", "from": "notes", "to": "lines", "label": "then connect"},
+          {"id": "e2", "from": "lines", "to": "known", "label": "needs evidence"},
+          {"id": "e3", "from": "saving", "to": "agents", "label": "same revisions"}
+        ]
+      }
+    },
+    {
+      "key": "guide-build-status", "editor": "team-guides",
+      "canvas": {
+        "title": "What works and what is next", "kind": "guide", "order": 5,
+        "description": "Where the build stands on 26 September. Ticket cards read their title and status from the catalog, so they stay current as work moves.",
+        "nodes": [
+          {"id": "works-records", "kind": "note", "title": "Works: shared records in Atlas", "text": "Tickets, lessons, activity and canvases are scoped per project in MongoDB Atlas, with safe retries and revision checks.", "x": 0, "y": 0, "color": "sage"},
+          {"id": "works-memory", "kind": "note", "title": "Works: gate and memory", "text": "The gate publishes or rejects candidates; each publish or rollback is a new harness version. Pi and the skill load the active one, and loads are audited.", "x": 320, "y": 0, "color": "sage"},
+          {"id": "works-access", "kind": "note", "title": "Works: personal access", "text": "Individual tokens, roles and browser sessions pass local checks. The hosted deployment and member enrollment are still open.", "x": 640, "y": 0, "color": "sage"},
+          {"id": "xch-4", "kind": "record", "ref": {"kind": "ticket", "key": "XCH-4"}, "x": 0, "y": 240, "color": "blue"},
+          {"id": "xch-1", "kind": "record", "ref": {"kind": "ticket", "key": "XCH-1"}, "x": 320, "y": 240, "color": "blue"},
+          {"id": "xch-9", "kind": "record", "ref": {"kind": "ticket", "key": "XCH-9"}, "x": 640, "y": 240, "color": "blue"},
+          {"id": "xch-5", "kind": "record", "ref": {"kind": "ticket", "key": "XCH-5"}, "x": 0, "y": 480, "color": "blue"},
+          {"id": "xch-2", "kind": "record", "ref": {"kind": "ticket", "key": "XCH-2"}, "x": 320, "y": 480, "color": "blue"},
+          {"id": "xch-10", "kind": "record", "ref": {"kind": "ticket", "key": "XCH-10"}, "x": 640, "y": 480, "color": "blue"}
+        ],
+        "edges": [
+          {"id": "e1", "from": "works-records", "to": "xch-4", "label": "next"},
+          {"id": "e2", "from": "works-memory", "to": "xch-1", "label": "fix first"},
+          {"id": "e3", "from": "works-access", "to": "xch-9", "label": "next"},
+          {"id": "e4", "from": "xch-4", "to": "xch-5", "label": "then notify"},
+          {"id": "e5", "from": "xch-1", "to": "xch-2", "label": "then measure"},
+          {"id": "e6", "from": "xch-9", "to": "xch-10", "label": "before sharing"}
+        ]
+      }
+    }
+  ]
 }

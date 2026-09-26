@@ -9,6 +9,9 @@ export const CanvasNodeSchema = z.discriminatedUnion("kind", [
 export const CanvasInputSchema = z.object({
   title: z.string().trim().min(1).max(80),
   description: z.string().max(2000).default(""),
+  // Guides are curated explainers listed first, by order. Absent means a working board.
+  kind: z.enum(["guide", "board"]).optional().describe("guide: curated explainer listed first; board (default): working canvas"),
+  order: z.number().int().min(1).max(999).optional().describe("Position among guides, lowest first"),
   nodes: z.array(CanvasNodeSchema).max(100),
   edges: z.array(z.object({ id: nodeId, from: nodeId, to: nodeId, label: z.string().max(80).default("") }).strict()).max(200),
 }).strict().superRefine((canvas, ctx) => {

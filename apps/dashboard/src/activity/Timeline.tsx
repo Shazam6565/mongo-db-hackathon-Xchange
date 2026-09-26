@@ -7,7 +7,7 @@ import { errorMessage, HealthResponse, request } from "../catalog/api.js";
 import { label } from "../catalog/model.js";
 import { AddActivity } from "./AddActivity.js";
 import { OutcomeEvidence } from "./ActivityHistory.js";
-import { useSession } from "../auth/SessionContext.js";
+import { canWrite, useSession } from "../auth/SessionContext.js";
 import "../catalog/catalog.css";
 import "./activity.css";
 
@@ -83,7 +83,7 @@ export function Timeline() {
         <label>From <input type="date" value={since} onChange={event => setSince(event.target.value)} /></label>
         <label>Through <input type="date" value={until} onChange={event => setUntil(event.target.value)} /></label>
         <button disabled={loading} onClick={() => void load()}>Refresh</button><span className="toolbar-spacer" />
-        <button ref={addButton} className="primary" onClick={() => setAdding(true)}>New record</button>
+        {canWrite(session) && <button ref={addButton} className="primary" onClick={() => setAdding(true)}>New record</button>}
       </div>
       <div className="timeline-content">
         {rootId && <p className="timeline-caption">History for {rootKind} {rootId} · <a href="/?view=timeline">Show all records</a></p>}

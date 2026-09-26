@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { MongoClient, type Collection } from "mongodb";
+import { MongoClient, type ClientSession, type Collection } from "mongodb";
+// Relative path: the hosted function cannot load workspace packages at runtime.
 import {
   lessonSearchText,
   type AuditEvent, type CandidateInput, type EvaluationResult, type EvaluationScores, type Lesson, type LessonVersionRef, type Scope,
-} from "@team-memory/contracts";
+} from "../../../packages/contracts/src/index.js";
+import type { HarnessVersionRecord, LessonRef } from "../../../packages/contracts/src/harness.js";
 import { stableUuid } from "./ids.js";
 
 export class RepositoryError extends Error {
@@ -36,14 +38,24 @@ export interface LessonRepository {
   // With an ID (the request's Idempotency-Key), repeating an identical proposal returns the
   // existing candidate; reusing the ID for different content is a 409.
   propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson>;
-  // Same as propose, but the lesson is published at once for every agent (no evaluation gate).
+  // Publishes at once, without the evaluation gate, and appends a harness version that adds the
+  // lesson in the same commit, so every agent loads it on its next message.
   share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson>;
-  commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores): Promise<{ lesson: Lesson; evaluation: EvaluationResult }>;
-  recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string): Promise<void>;
+  // A publish decision also appends a harness version that adds the lesson, in the same commit.
+  commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores): Promise<EvaluationCommit>;
+  recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string, harnessVersion?: number): Promise<void>;
   listEvaluations(scope: Scope): Promise<EvaluationResult[]>;
   listAudit(scope: Scope): Promise<AuditEvent[]>;
+  activeHarness(scope: Scope): Promise<ActiveLessons>;
+  harnessHistory(scope: Scope): Promise<HarnessVersionRecord[]>;
+  // Appends a version without the lesson. expectedVersion must be the active version number.
+  rollbackLesson(scope: Scope, expectedVersion: number, lessonId: string, actorId: string): Promise<{ harness: HarnessVersionRecord } & ActiveLessons>;
   close(): Promise<void>;
 }
+
+export interface EvaluationCommit { lesson: Lesson; evaluation: EvaluationResult; harness?: HarnessVersionRecord }
+// Version 0 with versionId null means no harness record exists yet: every published lesson is active.
+export interface ActiveLessons { version: number; versionId: string | null; lessons: Lesson[] }
 
 function makeCandidate(scope: Scope, input: CandidateInput, id: string = randomUUID()): Lesson {
   const now = new Date().toISOString();
@@ -131,6 +143,44 @@ function evaluationEvents(scope: Scope, lesson: Lesson, scores: EvaluationScores
   return events;
 }
 
+const refOf = (lesson: Pick<Lesson, "id" | "version">): LessonRef => ({ id: lesson.id, version: lesson.version });
+const byRecent = (a: Lesson, b: Lesson) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id);
+const MAX_HARNESS_LESSONS = 100;
+
+// Builds the next immutable version from the active lesson set.
+function nextHarnessVersion(
+  scope: Scope, current: HarnessVersionRecord | null, active: LessonRef[], reason: HarnessVersionRecord["reason"],
+  lesson: LessonRef, actorId: string, at: string,
+): HarnessVersionRecord {
+  const kept = active.filter((ref) => ref.id !== lesson.id);
+  const lessons = reason === "publish" ? [...kept, lesson] : kept;
+  if (lessons.length > MAX_HARNESS_LESSONS) throw new RepositoryError(`A harness version holds at most ${MAX_HARNESS_LESSONS} lessons. Roll one back first.`, 409);
+  return {
+    ...scope, id: randomUUID(), number: (current?.number ?? 0) + 1, parentId: current?.id ?? null,
+    lessons, reason, lessonId: lesson.id, actorId, createdAt: at,
+  };
+}
+
+function harnessEvent(version: HarnessVersionRecord, lesson: Pick<Lesson, "title"> | null, lessonVersion: number): AuditEvent {
+  const scope = { teamId: version.teamId, projectId: version.projectId };
+  const verb = version.reason === "publish" ? "added" : "rolled back";
+  return {
+    ...auditEvent(scope, version.reason === "publish" ? "harness.updated" : "harness.rollback", version.lessonId, lessonVersion,
+      version.actorId, version.createdAt, `Harness v${version.number}: ${verb} ${lesson?.title ?? version.lessonId}`),
+    harnessVersion: version.number,
+  };
+}
+
+function requireActive(active: LessonRef[], current: number, expectedVersion: number, lessonId: string): LessonRef {
+  if (current !== expectedVersion) throw new RepositoryError("The harness changed since it was loaded. Reload and retry.", 409);
+  const ref = active.find((item) => item.id === lessonId);
+  if (!ref) throw new RepositoryError("That lesson is not active in the current harness version.", 409);
+  return ref;
+}
+
+const consumedSummary = (count: number, harnessVersion?: number) =>
+  `Fetched ${count} published lesson${count === 1 ? "" : "s"}${harnessVersion === undefined ? "" : ` (harness v${harnessVersion})`}`;
+
 function requireCandidate(lesson: Lesson | null, expectedVersion: number): Lesson {
   if (!lesson) throw new RepositoryError("Lesson not found", 404);
   if (lesson.status !== "candidate") throw new RepositoryError("Only a candidate can be evaluated", 409);
@@ -150,7 +200,29 @@ export class InMemoryLessonRepository implements LessonRepository {
   private readonly lessons: Lesson[];
   private readonly evaluations: EvaluationResult[] = [];
   private readonly audit: AuditEvent[] = [];
+  private readonly harness: HarnessVersionRecord[] = [];
   constructor(seed: Lesson[] = []) { this.lessons = structuredClone(seed); }
+
+  private inScope(scope: Scope) {
+    return this.lessons.filter((lesson) => lesson.teamId === scope.teamId && lesson.projectId === scope.projectId);
+  }
+
+  private latestHarness(scope: Scope): HarnessVersionRecord | null {
+    return this.harness.filter((item) => item.teamId === scope.teamId && item.projectId === scope.projectId)
+      .reduce<HarnessVersionRecord | null>((latest, item) => !latest || item.number > latest.number ? item : latest, null);
+  }
+
+  private activeRefs(scope: Scope, current: HarnessVersionRecord | null): LessonRef[] {
+    return current ? current.lessons : this.inScope(scope).filter((lesson) => lesson.status === "published").sort(byRecent).slice(0, MAX_HARNESS_LESSONS).map(refOf);
+  }
+
+  private resolve(scope: Scope, current: HarnessVersionRecord | null): ActiveLessons {
+    const ids = new Set(this.activeRefs(scope, current).map((ref) => ref.id));
+    return {
+      version: current?.number ?? 0, versionId: current?.id ?? null,
+      lessons: structuredClone(this.inScope(scope).filter((lesson) => ids.has(lesson.id)).sort(byRecent)),
+    };
+  }
 
   async list(scope: Scope, status?: Lesson["status"]): Promise<Lesson[]> {
     return structuredClone(this.lessons
@@ -178,8 +250,13 @@ export class InMemoryLessonRepository implements LessonRepository {
     const existing = id ? this.lessons.find((item) => item.id === id) : undefined;
     if (existing) return structuredClone(sameProposal(existing, scope, input));
     const lesson: Lesson = { ...makeCandidate(scope, input, id), status: "published" };
+    const latest = this.latestHarness(scope);
+    // Built before any write, so an oversized harness leaves nothing half-shared.
+    const harness = nextHarnessVersion(scope, latest, this.activeRefs(scope, latest), "publish", refOf(lesson), lesson.authorId, lesson.createdAt);
     this.lessons.push(lesson);
     this.audit.push(proposalEvent(lesson), sharedEvent(lesson));
+    this.harness.push(harness);
+    this.audit.push(harnessEvent(harness, lesson, lesson.version));
     return structuredClone(lesson);
   }
 
@@ -190,18 +267,42 @@ export class InMemoryLessonRepository implements LessonRepository {
     const status = reviewedStatus(scores.decision);
     const stored = status ? { ...current, status, updatedAt: at } : current;
     const evaluation = makeEvaluation(scope, current, scores, at);
+    const latest = this.latestHarness(scope);
+    // Built before any write, so an oversized harness leaves the candidate unchanged.
+    const harness = status === "published" ? nextHarnessVersion(scope, latest, this.activeRefs(scope, latest), "publish", refOf(current), "evaluator", at) : undefined;
     if (status) this.lessons[index] = stored;
     this.evaluations.push(evaluation);
     this.audit.push(...evaluationEvents(scope, current, scores, at, status));
-    return { lesson: structuredClone(stored), evaluation: structuredClone(evaluation) };
+    if (harness) {
+      this.harness.push(harness);
+      this.audit.push(harnessEvent(harness, current, current.version));
+    }
+    return { lesson: structuredClone(stored), evaluation: structuredClone(evaluation), ...(harness ? { harness: structuredClone(harness) } : {}) };
   }
 
-  async recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string): Promise<void> {
-    this.audit.push(auditEvent(
-      scope, "memory.consumed", null, null, engineerId, at,
-      `Fetched ${lessons.length} published lesson${lessons.length === 1 ? "" : "s"}`,
-      lessons,
-    ));
+  async recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string, harnessVersion?: number): Promise<void> {
+    this.audit.push({
+      ...auditEvent(scope, "memory.consumed", null, null, engineerId, at, consumedSummary(lessons.length, harnessVersion), lessons),
+      ...(harnessVersion === undefined ? {} : { harnessVersion }),
+    });
+  }
+
+  async activeHarness(scope: Scope): Promise<ActiveLessons> {
+    return this.resolve(scope, this.latestHarness(scope));
+  }
+
+  async harnessHistory(scope: Scope): Promise<HarnessVersionRecord[]> {
+    return structuredClone(this.harness.filter((item) => item.teamId === scope.teamId && item.projectId === scope.projectId)
+      .sort((a, b) => b.number - a.number).slice(0, 50));
+  }
+
+  async rollbackLesson(scope: Scope, expectedVersion: number, lessonId: string, actorId: string) {
+    const latest = this.latestHarness(scope);
+    const ref = requireActive(this.activeRefs(scope, latest), latest?.number ?? 0, expectedVersion, lessonId);
+    const version = nextHarnessVersion(scope, latest, this.activeRefs(scope, latest), "rollback", ref, actorId, new Date().toISOString());
+    this.harness.push(version);
+    this.audit.push(harnessEvent(version, this.inScope(scope).find((lesson) => lesson.id === lessonId) ?? null, ref.version));
+    return { harness: structuredClone(version), ...this.resolve(scope, version) };
   }
 
   async listEvaluations(scope: Scope): Promise<EvaluationResult[]> {
@@ -229,6 +330,7 @@ export class MongoLessonRepository implements LessonRepository {
     private readonly lessons: Collection<StoredLesson>,
     private readonly evaluations: Collection<EvaluationResult>,
     private readonly audit: Collection<AuditEvent>,
+    private readonly harness: Collection<HarnessVersionRecord>,
     private readonly vector: VectorSettings | null,
   ) {}
 
@@ -240,15 +342,44 @@ export class MongoLessonRepository implements LessonRepository {
       const lessons = db.collection<StoredLesson>("lessons");
       const evaluations = db.collection<EvaluationResult>("evaluations");
       const audit = db.collection<AuditEvent>("audit_events");
+      const harness = db.collection<HarnessVersionRecord>("harness_versions");
       await lessons.createIndex({ id: 1 }, { unique: true });
       await lessons.createIndex({ teamId: 1, projectId: 1, status: 1, updatedAt: -1 });
       await evaluations.createIndex({ id: 1 }, { unique: true });
       await evaluations.createIndex({ teamId: 1, projectId: 1, lessonId: 1, createdAt: -1 });
       await audit.createIndex({ id: 1 }, { unique: true });
       await audit.createIndex({ teamId: 1, projectId: 1, at: -1 });
-      return new MongoLessonRepository(client, lessons, evaluations, audit, vector ?? null);
+      await harness.createIndex({ id: 1 }, { unique: true });
+      // Two concurrent changes cannot both become version n + 1.
+      await harness.createIndex({ teamId: 1, projectId: 1, number: -1 }, { unique: true });
+      return new MongoLessonRepository(client, lessons, evaluations, audit, harness, vector ?? null);
     } catch (error) {
       await client.close();
+      throw error;
+    }
+  }
+
+  private latestHarness(scope: Scope, session?: ClientSession) {
+    return this.harness.findOne(scope, { session, sort: { number: -1 }, projection: { _id: 0 } });
+  }
+
+  private async activeRefs(scope: Scope, current: HarnessVersionRecord | null, session?: ClientSession): Promise<LessonRef[]> {
+    if (current) return current.lessons;
+    const published = await this.lessons.find({ ...scope, status: "published" }, { session, projection: { _id: 0, id: 1, version: 1 } })
+      .sort({ updatedAt: -1, id: 1 }).limit(MAX_HARNESS_LESSONS).toArray();
+    return published.map(refOf);
+  }
+
+  private async resolve(scope: Scope, current: HarnessVersionRecord | null, session?: ClientSession): Promise<ActiveLessons> {
+    const ids = (await this.activeRefs(scope, current, session)).map((ref) => ref.id);
+    const lessons = ids.length ? await this.lessons.find({ ...scope, id: { $in: ids } }, { session, projection: HIDDEN_FIELDS }).toArray() : [];
+    return { version: current?.number ?? 0, versionId: current?.id ?? null, lessons: lessons.sort(byRecent) };
+  }
+
+  private async insertHarness(version: HarnessVersionRecord, session: ClientSession) {
+    try { await this.harness.insertOne({ ...version }, { session }); }
+    catch (error) {
+      if (isDuplicateKey(error)) throw new RepositoryError("Another harness change landed first. Reload and retry.", 409);
       throw error;
     }
   }
@@ -316,34 +447,54 @@ export class MongoLessonRepository implements LessonRepository {
   }
 
   async propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
-    return this.insert(scope, input, id, "candidate");
-  }
-
-  async share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
-    return this.insert(scope, input, id, "published");
-  }
-
-  private async insert(scope: Scope, input: CandidateInput, id: string | undefined, status: "candidate" | "published"): Promise<Lesson> {
-    const lesson: Lesson = { ...makeCandidate(scope, input, id), status };
-    // All writes are keyed upserts: a retry with the same ID completes a partial write
-    // instead of creating a second lesson or a second audit event.
+    const candidate = makeCandidate(scope, input, id);
+    // Both writes are keyed upserts: a retry with the same ID completes a partial proposal
+    // instead of creating a second candidate or a second audit event.
     // searchText is written with the lesson so Atlas embeds it without a separate pipeline.
-    try { await this.lessons.updateOne({ id: lesson.id }, { $setOnInsert: { ...lesson, searchText: lessonSearchText(lesson) } }, { upsert: true }); }
+    try { await this.lessons.updateOne({ id: candidate.id }, { $setOnInsert: { ...candidate, searchText: lessonSearchText(candidate) } }, { upsert: true }); }
     catch (error) { if (!isDuplicateKey(error)) throw error; }
-    const found = await this.lessons.findOne({ id: lesson.id }, { projection: HIDDEN_FIELDS });
+    const found = await this.lessons.findOne({ id: candidate.id }, { projection: HIDDEN_FIELDS });
     if (!found) throw new RepositoryError("The proposal could not be confirmed. Retry with the same Idempotency-Key.", 503);
     const stored = sameProposal(found, scope, input);
-    for (const event of status === "published" ? [proposalEvent(stored), sharedEvent(stored)] : [proposalEvent(stored)]) {
-      try { await this.audit.updateOne({ id: event.id }, { $setOnInsert: { ...event } }, { upsert: true }); }
-      catch (error) { if (!isDuplicateKey(error)) throw error; }
-    }
+    const event = proposalEvent(stored);
+    try { await this.audit.updateOne({ id: event.id }, { $setOnInsert: { ...event } }, { upsert: true }); }
+    catch (error) { if (!isDuplicateKey(error)) throw error; }
     return stored;
+  }
+
+  // The lesson, its audit events and the harness version that adds it commit together.
+  async share(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
+    const lesson: Lesson = { ...makeCandidate(scope, input, id), status: "published" };
+    const session = this.client.startSession();
+    try {
+      let stored: Lesson | undefined;
+      await session.withTransaction(async () => {
+        const existing = await this.lessons.findOne({ id: lesson.id }, { session, projection: HIDDEN_FIELDS });
+        // An identical retry returns the first result; different content under the same key is a 409.
+        if (existing) { stored = sameProposal(existing, scope, input); return; }
+        const latest = await this.latestHarness(scope, session);
+        const harness = nextHarnessVersion(scope, latest, await this.activeRefs(scope, latest, session), "publish", refOf(lesson), lesson.authorId, lesson.createdAt);
+        await this.lessons.insertOne({ ...lesson, searchText: lessonSearchText(lesson) }, { session });
+        await this.audit.insertMany([proposalEvent(lesson), sharedEvent(lesson)].map((event) => ({ ...event })), { session });
+        await this.insertHarness(harness, session);
+        await this.audit.insertOne({ ...harnessEvent(harness, lesson, lesson.version) }, { session });
+        stored = lesson;
+      });
+      if (!stored) throw new RepositoryError("Sharing did not commit", 500);
+      return stored;
+    } catch (error) {
+      const mapped = mapMongoError(error);
+      if (mapped) throw mapped;
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores) {
     const session = this.client.startSession();
     try {
-      let committed: { lesson: Lesson; evaluation: EvaluationResult } | undefined;
+      let committed: EvaluationCommit | undefined;
       await session.withTransaction(async () => {
         const current = requireCandidate(
           await this.lessons.findOne({ ...scope, id: lessonId }, { session, projection: HIDDEN_FIELDS }),
@@ -351,6 +502,12 @@ export class MongoLessonRepository implements LessonRepository {
         );
         const at = new Date().toISOString();
         const status = reviewedStatus(scores.decision);
+        let harness: HarnessVersionRecord | undefined;
+        if (status === "published") {
+          // Read the active set before this lesson's status changes, inside the same transaction.
+          const latest = await this.latestHarness(scope, session);
+          harness = nextHarnessVersion(scope, latest, await this.activeRefs(scope, latest, session), "publish", refOf(current), "evaluator", at);
+        }
         let stored: Lesson = current;
         if (status) {
           const updated = await this.lessons.updateOne(
@@ -364,7 +521,11 @@ export class MongoLessonRepository implements LessonRepository {
         const evaluation = makeEvaluation(scope, current, scores, at);
         await this.evaluations.insertOne({ ...evaluation }, { session });
         await this.audit.insertMany(evaluationEvents(scope, current, scores, at, status).map((event) => ({ ...event })), { session });
-        committed = { lesson: stored, evaluation };
+        if (harness) {
+          await this.insertHarness(harness, session);
+          await this.audit.insertOne({ ...harnessEvent(harness, current, current.version) }, { session });
+        }
+        committed = { lesson: stored, evaluation, ...(harness ? { harness } : {}) };
       });
       if (!committed) throw new RepositoryError("Evaluation did not commit", 500);
       return committed;
@@ -377,12 +538,44 @@ export class MongoLessonRepository implements LessonRepository {
     }
   }
 
-  async recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string): Promise<void> {
-    await this.audit.insertOne(auditEvent(
-      scope, "memory.consumed", null, null, engineerId, at,
-      `Fetched ${lessons.length} published lesson${lessons.length === 1 ? "" : "s"}`,
-      lessons,
-    ));
+  async recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string, harnessVersion?: number): Promise<void> {
+    await this.audit.insertOne({
+      ...auditEvent(scope, "memory.consumed", null, null, engineerId, at, consumedSummary(lessons.length, harnessVersion), lessons),
+      ...(harnessVersion === undefined ? {} : { harnessVersion }),
+    });
+  }
+
+  async activeHarness(scope: Scope): Promise<ActiveLessons> {
+    return this.resolve(scope, await this.latestHarness(scope));
+  }
+
+  async harnessHistory(scope: Scope): Promise<HarnessVersionRecord[]> {
+    return this.harness.find(scope, { projection: { _id: 0 } }).sort({ number: -1 }).limit(50).toArray();
+  }
+
+  async rollbackLesson(scope: Scope, expectedVersion: number, lessonId: string, actorId: string) {
+    const session = this.client.startSession();
+    try {
+      let result: ({ harness: HarnessVersionRecord } & ActiveLessons) | undefined;
+      await session.withTransaction(async () => {
+        const latest = await this.latestHarness(scope, session);
+        const active = await this.activeRefs(scope, latest, session);
+        const ref = requireActive(active, latest?.number ?? 0, expectedVersion, lessonId);
+        const version = nextHarnessVersion(scope, latest, active, "rollback", ref, actorId, new Date().toISOString());
+        await this.insertHarness(version, session);
+        const lesson = await this.lessons.findOne({ ...scope, id: lessonId }, { session, projection: { _id: 0, title: 1 } });
+        await this.audit.insertOne({ ...harnessEvent(version, lesson, ref.version) }, { session });
+        result = { harness: version, ...await this.resolve(scope, version, session) };
+      });
+      if (!result) throw new RepositoryError("Rollback did not commit", 500);
+      return result;
+    } catch (error) {
+      const mapped = mapMongoError(error);
+      if (mapped) throw mapped;
+      throw error;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async listEvaluations(scope: Scope): Promise<EvaluationResult[]> {

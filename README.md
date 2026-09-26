@@ -14,6 +14,8 @@ loop from one engineer's failure to an improvement in another engineer's workflo
 For teammates and agents joining the shared workspace, start with
 [team access and onboarding](docs/team-access.md): individual credentials, role
 permissions, browser sign-in, agent read/write commands, rotation and revocation.
+The maintained [project operating skills](skills/README.md) cover access, records,
+canvases, memory, evaluation, data setup and hosting, discoverable from a fresh clone.
 
 ## Repository status
 
@@ -31,7 +33,7 @@ This is a **runnable skeleton, not the finished learning system**.
 | Local `.team-memory/MEMORY.md` generated from published lessons | Starter implementation |
 | Automatic extraction of lessons from agent failures | Planned |
 | Baseline/candidate evaluations and publication gate | Fixed-suite scorer with version-checked publish/reject. No model calls |
-| Harness configuration rollout, rollback, and audit history | Contract/design only |
+| Harness versions: rollout on publish, rollback, audit and consumption history | Implemented; see `/?view=harness`. `client.mjs sync-skills` installs the active version as agent skills |
 | Ticket-aware ordering with Atlas Vector Search (Automated Embedding, Voyage `voyage-4`) | Implemented; see [MongoDB setup](infra/mongodb/README.md) |
 | Live synchronization through Change Streams and SSE | Design only; refresh is currently per run/manual |
 | Individual team grants, roles and browser sessions | Implemented with local security checks; real member enrollment pending |
@@ -195,13 +197,16 @@ the server. Hosted `/session` supports GET (status), POST (sign in), DELETE (sig
 | GET | `/v1/tickets` | Up to 100 recent scoped tickets |
 | GET | `/v1/tickets/:id` | One scoped ticket, including older records linked directly |
 | POST | `/v1/tickets` | Create a manual ticket; requires a UUID `Idempotency-Key`. Same-request retries return the same record; conflicting references return 409 |
-| GET | `/v1/memory` | Up to 10 recent published lessons. Records `x-engineer-id` and the returned lesson versions |
-| POST | `/v1/memory/search` | Body: `{ "query": "...", "ticketKey": "DEMO-118" }`. The same published lessons (up to 10), ordered by Atlas Vector Search relevance to the ticket and query, with scores in `retrieval`. Falls back to publication order when vector search is unavailable. Readers may call it |
+| GET | `/v1/memory` | Up to 10 recent lessons from the active harness version, with `harnessVersion`. Records `x-engineer-id` and the returned lesson versions |
+| POST | `/v1/memory/search` | Body: `{ "query": "...", "ticketKey": "DEMO-118" }`. Lessons from the active harness version (up to 10), ordered by Atlas Vector Search relevance to the ticket and query, with scores in `retrieval`. Falls back to recency when vector search is unavailable. Readers may call it |
 | POST | `/v1/lessons` | Validate and persist a candidate; cannot publish. With a UUID `Idempotency-Key`, a retry returns the same candidate and different content under the same key returns 409 |
 | POST | `/v1/lessons/share` | Same body and `Idempotency-Key` handling as `/v1/lessons`, but publishes at once without evaluation. Used by the Pi extension. Writers only |
 | POST | `/v1/lessons/:id/evaluate` | Score a candidate against the fixed suite. Body: `{ "expectedVersion": 1 }`. Publishes or rejects only when that version still matches |
 | GET | `/v1/evaluations` | Recent fixed-suite scores for this scope. Expected answers are not included |
-| GET | `/v1/audit` | Proposal, evaluation, publication, rejection, and memory-consumption events |
+| GET | `/v1/audit` | Proposal, evaluation, publication, rejection, harness-change and memory-consumption events |
+| GET | `/v1/harness` | Active harness version, its lesson references and version history. Not recorded as consumption |
+| GET | `/v1/harness/active` | Full lessons in the active version, used by `sync-skills`. Recorded as consumption with the version |
+| POST | `/v1/harness/rollback` | Body: `{ "expectedVersion": 2, "lessonId": "…" }`. Appends a version without that lesson; evaluator-only when hosted |
 
 ```bash
 curl http://127.0.0.1:4317/v1/memory \

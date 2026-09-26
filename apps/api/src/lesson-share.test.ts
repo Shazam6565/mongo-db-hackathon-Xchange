@@ -24,7 +24,14 @@ test("a shared lesson is published at once and reaches another engineer's memory
     assert.deepEqual(memory.lessons.map((lesson: { id: string }) => lesson.id), [shared.json().id]);
     const kinds = (await app.inject({ url: "/v1/audit", headers })).json().events
       .filter((event: { lessonId: string | null }) => event.lessonId === shared.json().id).map((event: { kind: string }) => event.kind).sort();
-    assert.deepEqual(kinds, ["lesson.proposed", "lesson.published"]);
+    assert.deepEqual(kinds, ["harness.updated", "lesson.proposed", "lesson.published"]);
+    // Sharing appends a harness version, so the lesson stays in memory after later publishes.
+    const harness = (await app.inject({ url: "/v1/harness", headers })).json();
+    assert.equal(harness.version, 1);
+    assert.deepEqual(harness.lessons, [{ id: shared.json().id, version: 1 }]);
+    const search = (await app.inject({ method: "POST", url: "/v1/memory/search", headers, payload: { query: "duplicates" } })).json();
+    assert.equal(search.harnessVersion, 1);
+    assert.deepEqual(search.lessons.map((lesson: { id: string }) => lesson.id), [shared.json().id]);
 
     // The gated route is unchanged: a proposal stays a candidate.
     const proposed = await app.inject({ method: "POST", url: "/v1/lessons", headers, payload: demoCandidate });
