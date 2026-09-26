@@ -75,7 +75,7 @@ It shows the API, your identity and role, and the team/project scope. A remote A
 | --- | --- |
 | `/ticket XCH-4` | Set the ticket this session works on; memory is ordered by relevance to it. `/ticket clear` removes it |
 | `/team-memory [text]` | Refresh `.team-memory/MEMORY.md` now, optionally for a search text |
-| `share_lesson` tool | The agent shares confirmed findings by itself. You can also ask: "share that as a lesson" |
+| `share_lesson` tool | The agent shares confirmed findings by itself. You can also ask: "share that as a lesson". When a finding corrects an existing lesson, the agent can pass that lesson's ID in `replaces`; the old lesson becomes `superseded` and stops loading. When lessons conflict, agents are told to trust the most recent one |
 | `/share-lesson Title \| Lesson \| TICKET-1 [\| component, component]` | Share a lesson by hand |
 
 Share only confirmed findings. A shared lesson reaches the whole project immediately, and the
