@@ -1,0 +1,14 @@
+body { display: flex; flex-direction: column; min-height: 100dvh; }
+.preview-banner { padding: 12px 24px; background: #f2f5ef; border-bottom: 1px solid #d8dfda; color: #354b3e; font: 13px/1.5 system-ui, sans-serif; }
+.preview-banner strong { margin-right: 16px; }
+.preview-banner details { margin-top: 4px; }
+.preview-banner summary { cursor: pointer; width: fit-content; text-decoration: underline; text-underline-offset: 3px; }
+.preview-banner p { max-width: 900px; margin: 8px 0 0; }
+#root { flex: 1; min-height: 0; }
+body:has(.canvas-app) { height: 100dvh; }
+body .canvas-app { height: 100%; min-height: 500px; }
+body .storage-label, body .catalog-toolbar > .primary, body .canvas-toolbar > .primary { display: none; }
+@media (max-width: 520px) {
+  .preview-banner { padding: 10px 14px; }
+  .preview-banner strong, .preview-banner > span { display: block; }
+}

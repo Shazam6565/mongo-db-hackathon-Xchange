@@ -1,5 +1,7 @@
 node_modules/
 dist/
+apps/dashboard/dist-preview/
+.vercel/
 coverage/
 .env
 .env.*
