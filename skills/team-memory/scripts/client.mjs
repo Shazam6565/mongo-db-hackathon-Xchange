@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { projectRoot, syncSkills } from "./skills.mjs";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export async function run(args = process.argv.slice(2), env = process.env, fetchImpl = fetch) {
   const [command, id, file, operation] = args;
@@ -29,6 +31,9 @@ export async function run(args = process.argv.slice(2), env = process.env, fetch
       return access;
     }
     case "memory": return api("/memory");
+    // Writes the active harness version as generated skills under the project root (default: nearest .git).
+    case "sync-skills": return syncSkills(id ? resolve(id) : await projectRoot(process.cwd()), await api("/harness/active"));
+    case "harness": return api("/harness");
     case "catalog": { const [lessons, tickets] = await Promise.all([api("/lessons"), api("/tickets")]); return { lessons, tickets }; }
     case "create-ticket": if (!id || !uuid.test(file || "")) throw new Error("Usage: create-ticket JSON_FILE OPERATION_UUID"); return api("/tickets", "POST", JSON.parse(await readFile(id, "utf8")), file);
     case "canvases": return api("/canvases");
@@ -43,7 +48,7 @@ export async function run(args = process.argv.slice(2), env = process.env, fetch
       return api(`/canvases/${id}`, "PUT", JSON.parse(source), operation);
     }
     case "propose": if (!id || (file && !uuid.test(file))) throw new Error("Usage: propose JSON_FILE [OPERATION_UUID]"); return api("/lessons", "POST", JSON.parse(await readFile(id, "utf8")), file);
-    default: throw new Error("Commands: access, memory, catalog, create-ticket JSON_FILE OPERATION_UUID, canvases, schema, canvas UUID, write-canvas UUID JSON_FILE OPERATION_UUID, propose JSON_FILE [OPERATION_UUID], list-activity [QUERY], read-activity UUID, record-activity JSON_FILE OPERATION_UUID");
+    default: throw new Error("Commands: access, memory, sync-skills [PROJECT_ROOT], harness, catalog,create-ticket JSON_FILE OPERATION_UUID, canvases, schema, canvas UUID, write-canvas UUID JSON_FILE OPERATION_UUID, propose JSON_FILE [OPERATION_UUID], list-activity [QUERY], read-activity UUID, record-activity JSON_FILE OPERATION_UUID");
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
