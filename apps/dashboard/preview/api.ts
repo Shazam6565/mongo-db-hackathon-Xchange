@@ -4,9 +4,15 @@ import { demoLessons } from "../../../packages/contracts/src/demo.js";
 import { TicketRecordSchema, type TicketInput } from "../../../packages/contracts/src/tickets.js";
 import { CanvasResponseSchema } from "../../../packages/contracts/src/canvas.js";
 
-export const LessonsResponse = z.object({ scope: ScopeSchema, lessons: z.array(LessonSchema) });
+// Same exports as src/catalog/api.ts, which this module replaces in the preview build.
+export const ApiLessonSchema = LessonSchema.strip();
+export const LessonsResponse = z.object({ scope: ScopeSchema, lessons: z.array(ApiLessonSchema) });
 export const TicketsResponse = z.object({ scope: ScopeSchema, tickets: z.array(TicketRecordSchema) });
 export const HealthResponse = z.object({ storage: z.enum(["memory", "mongodb"]), storageLabel: z.string().optional() });
+/** Never thrown here: preview failures are plain Errors, so `instanceof ApiError` checks are false. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
 
 export const scope = { teamId: "demo-team", projectId: "event-platform" };
 export const canvasId = "a630c355-5568-43e9-8957-9afc9c9567ec";
