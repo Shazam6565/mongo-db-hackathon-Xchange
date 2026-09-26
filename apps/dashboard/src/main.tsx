@@ -9,5 +9,5 @@ import { SessionGate } from "./auth/SessionGate.js";
 
 const view = new URLSearchParams(window.location.search).get("view");
 // /about is a static overview page: it needs no session or API, so it renders outside the gate.
-const app = window.location.pathname === "/about" ? <Landing /> : <SessionGate>{view === "canvas" ? <CanvasApp /> : view === "timeline" ? <Timeline /> : view === "harness" ? <Harness /> : <Catalog />}</SessionGate>;
+const app = window.location.pathname.replace(/\/+$/, "") === "/about" ? <Landing /> : <SessionGate>{view === "canvas" ? <CanvasApp /> : view === "timeline" ? <Timeline /> : view === "harness" ? <Harness /> : <Catalog />}</SessionGate>;
 createRoot(document.getElementById("root")!).render(<React.StrictMode>{app}</React.StrictMode>);

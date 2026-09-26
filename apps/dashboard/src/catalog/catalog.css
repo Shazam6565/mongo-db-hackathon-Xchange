@@ -141,3 +141,9 @@ body { margin: 0; }
   .ticket-dialog { padding: 20px; }
   .form-row { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 640px) {
+  .app-frame { min-width: 0; }
+  .app-frame nav { min-width: 0; flex: 0 1 auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  .app-frame nav::-webkit-scrollbar { display: none; }
+}
