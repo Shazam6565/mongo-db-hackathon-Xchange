@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CanvasResponseSchema } from "../../../packages/contracts/src/canvas.js";
+import * as live from "../src/catalog/api.js";
+import * as preview from "./api.js";
 import { canvasId, HealthResponse, loadCatalog, request } from "./api.js";
+
+// vite.preview.config.ts swaps the live module for this one; a missing export stops every view from loading.
+test("the preview provides every export of the live API module", () => {
+  const provided = new Map(Object.entries(preview));
+  assert.deepEqual(Object.entries(live).filter(([name, value]) => typeof provided.get(name) !== typeof value).map(([name]) => name), []);
+});
 
 test("preview records and canvas resolve without network access", async () => {
   const original = globalThis.fetch;
