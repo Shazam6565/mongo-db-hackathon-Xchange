@@ -1,19 +1,21 @@
-.catalog-app {
+/* Dialogs repeat the tokens: a modal can be rendered outside .catalog-app, as the Timeline lanes do. */
+.catalog-app, .ticket-dialog {
   --bg: #fff; --ink: #272b2a; --muted: #6c7470; --line: #e5e8e6; --soft: #f6f7f6;
   --accent: #315e4d; --accent-soft: #edf4ef; --danger: #9d3934;
   font-family: Arial, Helvetica, sans-serif; color: var(--ink); background: var(--bg);
-  font-size: 13px; line-height: 1.5; min-height: 100dvh;
+  font-size: 13px; line-height: 1.5;
 }
+.catalog-app { min-height: 100dvh; }
 .catalog-app, .catalog-app *, .ticket-dialog * { box-sizing: border-box; }
 body { margin: 0; }
 .catalog-app button, .catalog-app input, .catalog-app textarea, .ticket-dialog button, .ticket-dialog input, .ticket-dialog textarea { font: inherit; }
 .catalog-app button, .catalog-app summary, .ticket-dialog button { cursor: pointer; }
 .catalog-app button, .ticket-dialog button { border: 1px solid var(--line); border-radius: 5px; padding: 6px 11px; background: var(--bg); color: var(--ink); line-height: 1.5; white-space: nowrap; }
-.catalog-app button:hover, .catalog-app summary:hover { background: var(--soft); }
-.catalog-app button:disabled { opacity: .45; cursor: default; }
-.catalog-app .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.catalog-app .primary:hover { background: #244b3c; }
-.catalog-app :focus-visible { outline: 2px solid #4d826b; outline-offset: 3px; }
+.catalog-app button:hover, .catalog-app summary:hover, .ticket-dialog button:hover { background: var(--soft); }
+.catalog-app button:disabled, .ticket-dialog button:disabled { opacity: .45; cursor: default; }
+.catalog-app .primary, .ticket-dialog .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.catalog-app .primary:hover, .ticket-dialog .primary:hover { background: #244b3c; }
+.catalog-app :focus-visible, .ticket-dialog :focus-visible { outline: 2px solid #4d826b; outline-offset: 3px; }
 .catalog-app a { color: inherit; }
 .app-frame { display: flex; align-items: center; gap: 30px; height: 54px; padding: 0 24px; border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 600; white-space: nowrap; }
@@ -47,7 +49,7 @@ body { margin: 0; }
 .column-setting { flex-wrap: wrap; gap: 5px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .column-setting label { flex: 1; }
 .column-setting input[type=range] { width: 100%; height: 12px; }
-.catalog-app .icon-button { padding: 1px 7px; font-size: 16px; border: 0; background: transparent; }
+.catalog-app .icon-button, .ticket-dialog .icon-button { padding: 1px 7px; font-size: 16px; border: 0; background: transparent; }
 .catalog-app .text-button { border: 0; background: transparent; color: var(--muted); }
 .active-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 24px 13px; }
 .active-filters button { padding: 2px 7px; font-size: 12px; max-width: 100%; overflow-wrap: anywhere; white-space: normal; background: var(--soft); }
