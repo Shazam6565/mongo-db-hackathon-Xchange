@@ -1,3 +1,7 @@
+import { ActivityRecordSchema, type ActivityRecord } from "../../../../packages/contracts/src/activity.js";
+import { AddActivity } from "../activity/AddActivity.js";
+import { LessonSchema } from "@team-memory/contracts";
+import { AppFrame } from "../AppFrame.js";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { TicketRecordSchema, type TicketRecord } from "../../../../packages/contracts/src/tickets.js";
 import { AddTicket } from "./AddTicket.js";
@@ -43,12 +47,14 @@ export function Catalog() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [addingActivity, setAddingActivity] = useState(false);
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<TableView>(defaultView);
   const [extraItem, setExtraItem] = useState<CatalogItem>();
   const [detailError, setDetailError] = useState("");
   const controller = useRef<AbortController | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
+  const activityButton = useRef<HTMLButtonElement>(null);
   const { query, update } = useQuery();
   const selection = query.get("item");
   const storageKey = data ? `team-memory:catalog:v1:${encodeURIComponent(data.scope.teamId)}:${encodeURIComponent(data.scope.projectId)}` : null;
@@ -72,16 +78,16 @@ export function Catalog() {
     if (storageKey) try { localStorage.setItem(storageKey, JSON.stringify({ version: 1, view: next })); }
     catch { setNotice("Column preferences could not be saved in this browser."); }
   }
-  const items = useMemo(() => data ? projectItems(data.lessons, data.tickets) : [], [data]);
+  const items = useMemo(() => data ? projectItems(data.lessons, data.tickets, data.activity) : [], [data]);
   const matching = useMemo(() => filterItems(items, query), [items, query]);
   const selected = items.find(item => itemKey(item) === selection) ?? (extraItem && itemKey(extraItem) === selection ? extraItem : undefined);
   useEffect(() => {
     setDetailError("");
     if (!data || !selection || selected || loading) return;
-    if (!selection.startsWith("ticket:")) { setDetailError("This lesson is outside the recent catalog or is no longer available."); return; }
+    if (!/^(ticket|lesson|observation|decision|application|outcome|correction):/.test(selection)) { setDetailError("Unknown record type."); return; }
     const active = new AbortController();
-    request(`/v1/tickets/${encodeURIComponent(selection.slice(7))}`, { signal: active.signal })
-      .then(value => { if (!active.signal.aborted) setExtraItem(projectItems([], [TicketRecordSchema.parse(value)])[0]); })
+    request(`/v1/${selection.startsWith("ticket:") ? "tickets" : selection.startsWith("lesson:") ? "lessons" : "activity"}/${encodeURIComponent(selection.slice(selection.indexOf(":") + 1))}`, { signal: active.signal })
+      .then(value => { if (!active.signal.aborted) setExtraItem(selection.startsWith("ticket:") ? projectItems([], [TicketRecordSchema.parse(value)])[0] : selection.startsWith("lesson:") ? projectItems([LessonSchema.parse(value)], [])[0] : projectItems([], [], [ActivityRecordSchema.parse(value)])[0]); })
       .catch(failure => { if (!active.signal.aborted) setDetailError(errorMessage(failure)); });
     return () => active.abort();
   }, [data, selection, selected, loading]);
@@ -111,16 +117,11 @@ export function Catalog() {
   }
   return <div className="catalog-app">
     <a className="skip-link" href="#catalog-content">Skip to catalog</a>
-    <header className="app-frame"><a className="brand" href="/" aria-label="Team Memory catalog"><span className="brand-mark" aria-hidden="true">tm</span>Team Memory</a>
-      <nav aria-label="Workspace"><a href="/" aria-current="page">Catalog</a></nav>
-      {data && <span className="project-scope" title={`${data.scope.teamId} / ${data.scope.projectId}`}>{data.scope.projectId}</span>}
-      <span className="storage-label" title={!data ? "Connecting to the API." : data.storage === "memory" ? "Records reset when the API restarts." : "Records persist in the configured database."}>
-        <span className={`storage-dot ${data && !error ? "connected" : ""}`} />{error ? "Connection issue" : !data ? "Connecting…" : data.storage === "memory" ? "Temporary storage" : "MongoDB"}</span>
-    </header>
+    <AppFrame active="Catalog" data={data} error={Boolean(error)} />
     <main id="catalog-content" className="catalog-main" tabIndex={-1}>
       <div className="catalog-toolbar">
         <label className="search-field"><span className="sr-only">Search recent items</span><span aria-hidden="true">⌕</span><input type="search" placeholder="Search recent items…" value={query.get("q") ?? ""} onChange={event => update(params => { if (event.target.value) params.set("q", event.target.value); else params.delete("q"); params.delete("page"); }, true)} /></label>
-        <details className="popover"><summary>Type{query.getAll("type").length ? ` · ${query.getAll("type").length}` : ""}</summary><div className="popover-panel filter-panel">{["ticket", "lesson"].map(kind => <label key={kind}><input type="checkbox" checked={query.getAll("type").includes(kind)} onChange={event => update(params => setFacet(params, "type", kind, event.target.checked))} />{label(kind)}</label>)}</div></details>
+        <details className="popover"><summary>Type{query.getAll("type").length ? ` · ${query.getAll("type").length}` : ""}</summary><div className="popover-panel filter-panel">{["ticket", "lesson", "observation", "decision", "application", "outcome", "correction"].map(kind => <label key={kind}><input type="checkbox" checked={query.getAll("type").includes(kind)} onChange={event => update(params => setFacet(params, "type", kind, event.target.checked))} />{label(kind)}</label>)}</div></details>
         <details className="popover"><summary>Status{query.getAll("status").length ? ` · ${query.getAll("status").length}` : ""}</summary><div className="popover-panel filter-panel">{statuses.map(status => <label key={status}><input type="checkbox" checked={query.getAll("status").includes(status)} onChange={event => update(params => setFacet(params, "status", status, event.target.checked))} />{label(status)}</label>)}</div></details>
         <div className="toolbar-spacer" />
         <details className="popover columns-popover"><summary>Columns</summary><div className="popover-panel columns-panel">
@@ -133,6 +134,7 @@ export function Catalog() {
           </div>; })}<p className="muted">Saved in this browser for this project.</p>
         </div></details>
         <button onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
+        <button ref={activityButton} onClick={() => setAddingActivity(true)} disabled={!data || loading || Boolean(error)}>+ New record</button>
         <button ref={addButton} className="primary" onClick={() => setAdding(true)} disabled={!data || loading || Boolean(error)}>+ Add ticket</button>
       </div>
       {filtered && <div className="active-filters" aria-label="Active filters">
@@ -146,21 +148,22 @@ export function Catalog() {
         <div className="catalog-table-area" aria-busy={loading}>
           <div className={`table-scroll ${view.wrap ? "" : "compact"}`} tabIndex={0} role="region" aria-label="Catalog records">
             <table style={{ width: visibleColumns.reduce((sum, col) => sum + (view.widths[col.id] ?? col.width), 0) }}>
-              <caption className="sr-only">Recent tickets and lessons</caption>
+              <caption className="sr-only">Recent catalog records</caption>
               <colgroup>{visibleColumns.map(col => <col key={col.id} style={{ width: view.widths[col.id] ?? col.width }} />)}</colgroup>
               <thead><tr>{visibleColumns.map(col => <th key={col.id} scope="col" aria-sort={sort === col.id ? order === "asc" ? "ascending" : "descending" : "none"}><button onClick={() => update(params => { params.set("sort", col.id); params.set("order", sort === col.id && order === "asc" ? "desc" : "asc"); params.delete("page"); })}>{col.label}<span aria-hidden="true">{sort === col.id ? order === "asc" ? " ↑" : " ↓" : ""}</span></button></th>)}</tr></thead>
               <tbody>{!error && shown.map(item => <tr key={itemKey(item)} className={selection === itemKey(item) ? "selected-row" : ""}>{visibleColumns.map(col => <td key={col.id}>
                 {col.id === "title" ? <><a id={`item-${itemKey(item)}`} className="item-link" href={itemHref(item)} onClick={event => openItem(event, item)}>{item.title}</a>{item.record.kind === "lesson" && item.record.value.origin === "demo" && <span className="sample-label">Sample</span>}</> : <Cell item={item} column={col.id} />}
               </td>)}</tr>)}</tbody>
             </table>
-            {!loading && !error && matching.length === 0 && <div className="empty-state"><strong>{filtered ? "No matching items" : "Your catalog is empty"}</strong><p>{filtered ? "Try another search or clear the filters." : "Add a ticket to get started. Shared lessons will appear here too."}</p>{filtered ? <button onClick={clearFilters}>Clear filters</button> : <button onClick={() => setAdding(true)}>Add ticket</button>}</div>}
+            {!loading && !error && matching.length === 0 && <div className="empty-state"><strong>{filtered ? "No matching items" : "Your catalog is empty"}</strong><p>{filtered ? "Try another search or clear the filters." : "Add a ticket or observation to get started. Shared lessons will appear here too."}</p>{filtered ? <button onClick={clearFilters}>Clear filters</button> : <button onClick={() => setAdding(true)}>Add ticket</button>}</div>}
             {loading && !data && <div className="empty-state" role="status">Loading catalog…</div>}
           </div>
-          <footer className="table-footer"><span>{error ? "Catalog unavailable" : `${matching.length} ${filtered ? "matching" : "recent"} item${matching.length === 1 ? "" : "s"}`}</span><span className="window-note">Latest 100 per type</span><div className="pagination"><button aria-label="Previous page" disabled={page <= 1} onClick={() => update(params => params.set("page", String(page - 1)))}>←</button><span>{page} / {pageCount}</span><button aria-label="Next page" disabled={page >= pageCount} onClick={() => update(params => params.set("page", String(page + 1)))}>→</button></div></footer>
+          <footer className="table-footer"><span>{error ? "Catalog unavailable" : `${matching.length} ${filtered ? "matching" : "recent"} item${matching.length === 1 ? "" : "s"}`}</span><span className="window-note">Latest 100 tickets, lessons and activity</span><div className="pagination"><button aria-label="Previous page" disabled={page <= 1} onClick={() => update(params => params.set("page", String(page - 1)))}>←</button><span>{page} / {pageCount}</span><button aria-label="Next page" disabled={page >= pageCount} onClick={() => update(params => params.set("page", String(page + 1)))}>→</button></div></footer>
         </div>
         {selection && (selected && !error ? <ItemDetails item={selected} onClose={closeDetails} onEvaluated={() => void refresh()} /> : <aside className="item-details"><button onClick={closeDetails}>Close details</button><p role={detailError ? "alert" : "status"}>{error ? "Refresh the catalog to inspect this record." : detailError || "Loading record…"}</p></aside>)}
       </div>
     </main>
+    {addingActivity && data && <AddActivity onClose={() => { setAddingActivity(false); activityButton.current?.focus(); }} onSaved={(record: ActivityRecord) => { setAddingActivity(false); setData(current => current ? { ...current, activity: [record, ...current.activity.filter(item => item.id !== record.id)].slice(0, 100) } : current); setNotice(`Added ${label(record.kind).toLowerCase()}.`); update(params => { ["q", "type", "status", "page"].forEach(key => params.delete(key)); params.set("item", `${record.kind}:${record.id}`); }); }} />}
     {adding && data && <AddTicket storage={data.storage} onClose={() => { setAdding(false); addButton.current?.focus(); }} onSaved={saved} />}
   </div>;
 }

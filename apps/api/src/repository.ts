@@ -168,7 +168,7 @@ export class MongoLessonRepository implements LessonRepository {
   ) {}
 
   static async connect(uri: string, database: string): Promise<MongoLessonRepository> {
-    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
+    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000, maxPoolSize: 5, waitQueueTimeoutMS: 5000 });
     try {
       await client.connect();
       const db = client.db(database);

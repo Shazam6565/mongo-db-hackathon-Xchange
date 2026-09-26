@@ -1,12 +1,13 @@
 import type { Lesson } from "@team-memory/contracts";
 import type { TicketRecord } from "../../../../packages/contracts/src/tickets.js";
+import type { ActivityRecord } from "../../../../packages/contracts/src/activity.js";
 
 export type CatalogItem = {
-  id: string; kind: "lesson" | "ticket"; title: string; description: string;
+  id: string; kind: "lesson" | "ticket" | ActivityRecord["kind"]; title: string; description: string;
   status: string; reference: string; appliesTo: string[]; author: string; updatedAt: string;
-  record: { kind: "lesson"; value: Lesson } | { kind: "ticket"; value: TicketRecord };
+  record: { kind: "lesson"; value: Lesson } | { kind: "ticket"; value: TicketRecord } | { kind: "activity"; value: ActivityRecord };
 };
-export function projectItems(lessons: Lesson[], tickets: TicketRecord[]): CatalogItem[] {
+export function projectItems(lessons: Lesson[], tickets: TicketRecord[], activity: ActivityRecord[] = []): CatalogItem[] {
   return [
     ...lessons.map((value): CatalogItem => ({ id: value.id, kind: "lesson", title: value.title, description: value.lesson,
       status: value.status, reference: value.id, appliesTo: value.appliesTo, author: value.authorId,
@@ -14,6 +15,9 @@ export function projectItems(lessons: Lesson[], tickets: TicketRecord[]): Catalo
     ...tickets.map((value): CatalogItem => ({ id: value.id, kind: "ticket", title: value.summary, description: value.description,
       status: value.status, reference: value.key, appliesTo: value.component ? [value.component] : [], author: "",
       updatedAt: value.updatedAt, record: { kind: "ticket", value } })),
+    ...activity.map((value): CatalogItem => ({ id: value.id, kind: value.kind, title: value.title, description: value.detail,
+      status: value.correctedBy.length ? "correction_recorded" : value.kind === "outcome" ? "reported" : "recorded", reference: value.runId ?? value.id,
+      appliesTo: [], author: value.actorLabel, updatedAt: value.recordedAt, record: { kind: "activity", value } })),
   ];
 }
 export const columns = [
@@ -39,7 +43,7 @@ export function readView(raw: unknown): TableView {
     widths: Object.fromEntries(Object.entries(v.widths && typeof v.widths === "object" ? v.widths : {})
       .filter(([id, width]) => known(id) && typeof width === "number" && Number.isFinite(width) && width >= 100 && width <= 600)), wrap: v.wrap !== false };
 }
-export const statuses = ["open", "candidate", "published", "rejected", "superseded"];
+export const statuses = ["open", "candidate", "published", "rejected", "superseded", "recorded", "reported", "correction_recorded"];
 export function label(value: string) { return value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " "); }
 export function itemKey(item: CatalogItem) { return `${item.kind}:${item.id}`; }
 export function filterItems(items: CatalogItem[], query: URLSearchParams) {
@@ -50,7 +54,7 @@ export function filterItems(items: CatalogItem[], query: URLSearchParams) {
   const direction = query.get("order") === "asc" ? 1 : -1;
   return items.filter(item => (!kinds.length || kinds.includes(item.kind)) && (!selectedStatuses.length || selectedStatuses.includes(item.status)) &&
     (!term || [item.title, item.description, item.reference, item.author, ...item.appliesTo,
-      ...(item.record.kind === "lesson" ? item.record.value.evidence.flatMap(e => [e.reference, e.summary]) : [])]
+      ...(item.record.kind !== "ticket" ? item.record.value.evidence.flatMap(e => [e.reference, e.summary]) : [])]
       .join(" ").toLocaleLowerCase().includes(term)))
     .sort((a, b) => String(a[sort]).localeCompare(String(b[sort]), undefined, { numeric: true }) * direction || itemKey(a).localeCompare(itemKey(b)));
 }

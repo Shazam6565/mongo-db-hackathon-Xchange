@@ -1,0 +1,41 @@
+.app-frame nav { gap: 18px; }
+.app-frame nav a { border-color: transparent; }
+.app-frame nav a[aria-current=page] { border-color: var(--accent); }
+.canvas-app { height: 100dvh; min-height: 500px; display: flex; flex-direction: column; }
+.canvas-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.canvas-toolbar,.canvas-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
+.canvas-toolbar select { max-width: 280px; }
+.canvas-app select,.canvas-app input,.canvas-app textarea { font: inherit; color: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); }
+.canvas-tools { padding-top: 9px; padding-bottom: 9px; }
+.canvas-tools > input { width: 230px; border-color: transparent; font-weight: 600; }
+.canvas-tools > .muted { margin-right: auto; font-size: 11px; }
+.canvas-tools > select { max-width: 280px; }
+.canvas-workspace { display: grid; grid-template-columns: minmax(0,1fr); flex: 1; min-height: 240px; }
+.canvas-workspace.with-inspector { grid-template-columns: minmax(0,1fr) 290px; }
+.canvas-stage { position: relative; overflow: hidden; touch-action: none; background: radial-gradient(#dbe2dd .8px,transparent .8px) 0 0 / 20px 20px #fafcfb; cursor: grab; outline-offset: -3px; }
+.canvas-stage:active { cursor: grabbing; }
+.canvas-world { position: absolute; transform-origin: 0 0; }
+.canvas-node { position: absolute; width: 240px; height: 160px; padding: 14px 16px; background: #fff; border: 1px solid #d8dfda; border-radius: 7px; box-shadow: 0 2px 6px #22332a09; user-select: none; cursor: grab; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+.canvas-node.is-selected { outline: 2px solid #527c67; outline-offset: 2px; }
+.canvas-node.color-sage { background: #eef5ee; border-color: #c8dccb; }.canvas-node.color-blue { background: #eef4fa; border-color: #cadbe9; }.canvas-node.color-amber { background: #fdf7e9; border-color: #e6d8b9; }
+.node-kind { text-transform: capitalize; color: var(--muted); font-size: 10px; }
+.canvas-node strong { font-weight: 600; font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.canvas-node p { margin: 0; font-size: 12px; white-space: pre-wrap; overflow: hidden; overflow-wrap: anywhere; color: #646e67; flex: 1; }
+.canvas-node a { font-size: 11px; align-self: flex-start; text-underline-offset: 3px; }
+.canvas-edges { position: absolute; overflow: visible; width: 1px; height: 1px; pointer-events: none; }
+.canvas-edges text { font: 11px Arial,sans-serif; fill: #657b6d; paint-order: stroke; stroke: #fafcfb; stroke-width: 5px; stroke-linejoin: round; }
+.canvas-hint { position: absolute; top: 45%; left: 0; right: 0; text-align: center; color: var(--muted); pointer-events: none; }
+.canvas-inspector { border-left: 1px solid var(--line); padding: 16px; overflow: auto; font-size: 12px; }
+.canvas-inspector fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 13px; min-width: 0; }
+.canvas-inspector input,.canvas-inspector textarea,.canvas-inspector select { width: 100%; display: block; margin-top: 4px; }
+.canvas-inspector textarea { resize: vertical; }
+.canvas-inspector .record-prose { max-height: 160px; overflow: auto; }
+.canvas-inspector .remove-placement { margin-top: 12px; }
+.connection-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.connection-row span { overflow-wrap: anywhere; min-width: 0; }
+.canvas-footer { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.canvas-footer > div { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.canvas-footer button { padding: 2px 9px; }
+.canvas-app .error-message,.canvas-app .notice { margin: 8px 24px; }
+@media(max-width: 700px) { .canvas-workspace.with-inspector { grid-template-columns: minmax(0,1fr) 230px; }.canvas-toolbar,.canvas-tools { padding: 9px 14px; }.canvas-toolbar select { max-width: 170px; }.canvas-tools > select { max-width: 200px; }.canvas-footer > span { display: none; } }
+@media(max-width: 520px) { .brand-name { display: none; }.app-frame { gap: 14px; }.app-frame nav { gap: 12px; }.canvas-workspace { position: relative; }.canvas-workspace.with-inspector { grid-template-columns: minmax(0,1fr); }.canvas-inspector { position: absolute; right: 0; top: 0; bottom: 0; width: 220px; background: var(--bg); box-shadow: -6px 0 18px #22332a0d; }.canvas-tools > input { width: 190px; }.canvas-tools > select { max-width: 230px; } }

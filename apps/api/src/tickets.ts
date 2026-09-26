@@ -51,7 +51,7 @@ export class InMemoryTicketRepository implements TicketRepository {
 export class MongoTicketRepository implements TicketRepository {
   private constructor(private readonly client: MongoClient, private readonly tickets: Collection<TicketRecord>) {}
   static async connect(uri: string, database: string) {
-    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
+    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000, maxPoolSize: 5, waitQueueTimeoutMS: 5000 });
     try {
       await client.connect();
       const tickets = client.db(database).collection<TicketRecord>("tickets");

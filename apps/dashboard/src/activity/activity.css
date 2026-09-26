@@ -1,0 +1,31 @@
+.activity-dialog select, .timeline-toolbar select, .timeline-toolbar input { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 4px; padding: 7px; max-width: 100%; }
+.activity-dialog select { display: block; margin-top: 6px; width: 100%; }
+.activity-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+.activity-history-list, .timeline-list { list-style: none; padding: 0; margin: 18px 0; }
+.activity-history-list li { border-left: 2px solid var(--line); padding: 0 0 20px 15px; margin-left: 3px; }
+.history-meta { display: flex; gap: 8px 16px; flex-wrap: wrap; color: var(--muted); font-size: 11px; margin-bottom: 5px; }
+.outcome-evidence { margin-top: 12px; font-size: 12px; }
+.outcome-evidence strong { font-weight: 500; }
+.effect-table { max-width: 100%; overflow: auto; }
+.catalog-app .effect-table table { table-layout: auto; width: 100%; font-size: 12px; }
+.catalog-app .effect-table th, .catalog-app .effect-table td { padding: 6px 8px; }
+.effect-table caption { text-align: left; color: var(--muted); font-size: 11px; padding-bottom: 8px; }
+.timeline-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 18px 24px; border-bottom: 1px solid var(--line); }
+.timeline-toolbar label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.timeline-content { padding: 18px 24px 50px; max-width: 1150px; }
+.timeline-list > li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 26px; margin: 0; }
+.timeline-list > li > time { padding: 13px 0; font-size: 12px; }
+.timeline-entry { border-left: 2px solid var(--line); padding: 12px 0 25px 24px; position: relative; overflow-wrap: anywhere; min-width: 0; }
+.timeline-entry::before { content: ""; position: absolute; left: -5px; top: 19px; width: 8px; height: 8px; border-radius: 50%; background: #91aa9c; }
+.timeline-entry > a { font-weight: 600; text-decoration: none; }
+.timeline-entry > a:hover { text-decoration: underline; }
+.timeline-entry .record-prose { max-width: 800px; }
+.timeline-entry details { margin-top: 12px; color: var(--muted); font-size: 12px; }
+.timeline-caption { color: var(--muted); margin: 0 0 15px; font-size: 12px; }
+@media (max-width: 600px) {
+  .timeline-toolbar { padding: 14px; gap: 10px; }
+  .timeline-content { padding: 16px 14px; }
+  .timeline-list > li { grid-template-columns: minmax(0,1fr); gap: 0; }
+  .timeline-list > li > time { padding: 4px 0 4px 18px; }
+  .timeline-entry { padding-left: 18px; }
+}

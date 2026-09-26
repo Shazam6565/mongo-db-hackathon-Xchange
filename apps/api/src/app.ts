@@ -1,4 +1,6 @@
+import { InMemoryActivityRepository, registerActivity, type ActivityRepository } from "./activity.js";
 import Fastify from "fastify";
+import { InMemoryCanvasRepository, registerCanvases, type CanvasRepository } from "./canvases.js";
 import { InMemoryTicketRepository, registerTickets, type TicketRepository } from "./tickets.js";
 import {
   CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, engineerIdFromHeader, type Scope,
@@ -9,6 +11,9 @@ import { RepositoryError, type LessonRepository } from "./repository.js";
 export interface AppOptions {
   repository: LessonRepository;
   tickets?: TicketRepository;
+  canvases?: CanvasRepository;
+  activity?: ActivityRepository;
+  storageLabel?: string;
   token: string;
   scope: Scope;
   storage: "memory" | "mongodb";
@@ -30,14 +35,22 @@ export function buildApp(options: AppOptions) {
   const suite = loadSuite();
   if (options.storage === "mongodb" && !options.tickets) throw new Error("MongoDB mode requires a persistent ticket repository.");
   const tickets = options.tickets ?? new InMemoryTicketRepository();
+  if (options.storage === "mongodb" && !options.canvases) throw new Error("MongoDB mode requires a persistent canvas repository.");
+  const canvases = options.canvases ?? new InMemoryCanvasRepository();
+  if (options.storage === "mongodb" && !options.activity) throw new Error("MongoDB mode requires a persistent activity repository.");
+  const activity = options.activity ?? new InMemoryActivityRepository();
   const app = Fastify({ logger: options.logger ?? false, bodyLimit: 64 * 1024 });
-  app.get("/health", async () => ({
-    status: "ok",
-    storage: options.storage,
-    stage: "evaluation-gate",
-    evaluator: EVALUATOR_VERSION,
-    suiteVersion: suite.suiteVersion,
-  }));
+  app.setErrorHandler((error, _req, reply) => {
+    const code = error instanceof Error && "statusCode" in error ? error.statusCode : undefined;
+    const status = typeof code === "number" && code >= 400 && code < 500 ? code : 503;
+    reply.code(status).send({ error: status < 500 ? "Invalid request." : "Storage is unavailable. Check the API connection and retry." });
+  });
+  app.get("/health", async (_req, reply) => {
+    try { await canvases.ping(); }
+    catch { return reply.code(503).send({ status: "degraded", storage: options.storage, error: "MongoDB is unreachable. Check the server configuration and network access." }); }
+    return { status: "ok", storage: options.storage, storageLabel: options.storageLabel ?? (options.storage === "memory" ? "Temporary storage" : "MongoDB"),
+      checkedAt: new Date().toISOString(), stage: "shared-canvas", evaluator: EVALUATOR_VERSION, suiteVersion: suite.suiteVersion };
+  });
 
   app.register(async (api) => {
     api.addHook("onRequest", async (request, reply) => {
@@ -47,6 +60,9 @@ export function buildApp(options: AppOptions) {
     });
 
     registerTickets(api, tickets, options.scope);
+    registerActivity(api, activity, options.scope, options.repository);
+    registerCanvases(api, canvases, options.repository, tickets, options.scope);
+    api.get<{ Params: { id: string } }>("/lessons/:id", async (req, reply) => (await options.repository.get(options.scope, req.params.id)) ?? reply.code(404).send({ error: "Lesson not found" }));
 
     api.get("/lessons", async () => ({
       scope: options.scope,
@@ -107,6 +123,6 @@ export function buildApp(options: AppOptions) {
     });
   }, { prefix: "/v1" });
 
-  app.addHook("onClose", async () => { await Promise.all([options.repository.close(), tickets.close()]); });
+  app.addHook("onClose", async () => { await Promise.all([options.repository.close(), tickets.close(), canvases.close(), activity.close()]); });
   return app;
 }

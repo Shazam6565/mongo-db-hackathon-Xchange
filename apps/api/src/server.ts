@@ -1,41 +1,33 @@
+import { InMemoryActivityRepository, MongoActivityRepository } from "./activity.js";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import { demoLessons } from "../../../packages/contracts/src/demo.js";
 import { buildApp } from "./app.js";
 import { InMemoryTicketRepository, MongoTicketRepository } from "./tickets.js";
 import { InMemoryLessonRepository, MongoLessonRepository } from "./repository.js";
+import { InMemoryCanvasRepository, MongoCanvasRepository } from "./canvases.js";
+import { loadConfig } from "./config.js";
 
 config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)), quiet: true });
-const uri = process.env.MONGODB_URI?.trim();
-const host = process.env.HOST ?? "127.0.0.1";
-if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
-  throw new Error("This starter uses local development authentication. Add per-user auth before exposing the API remotely.");
-}
-const scope = {
-  teamId: process.env.TEAM_ID ?? "demo-team",
-  projectId: process.env.PROJECT_ID ?? "event-platform",
-};
-const repository = uri
-  ? await MongoLessonRepository.connect(uri, process.env.MONGODB_DATABASE ?? "team_memory_harness")
-  : new InMemoryLessonRepository(demoLessons.map((lesson) => ({ ...lesson, ...scope })));
-
-let tickets;
+const opened: { close(): Promise<void> }[] = [];
 try {
-  tickets = uri
-    ? await MongoTicketRepository.connect(uri, process.env.MONGODB_DATABASE ?? "team_memory_harness")
-    : new InMemoryTicketRepository();
-} catch (error) { await repository.close(); throw error; }
-
-const app = buildApp({
-  repository,
-  tickets,
-  scope,
-  token: process.env.TEAM_API_TOKEN ?? "local-demo-token",
-  storage: uri ? "mongodb" : "memory",
-  logger: true,
-});
-
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, () => { void app.close(); });
+  const settings = loadConfig(process.env);
+  const repository = settings.mode === "mongodb"
+    ? await MongoLessonRepository.connect(settings.uri!, settings.database)
+    : new InMemoryLessonRepository(demoLessons.map(lesson => ({ ...lesson, ...settings.scope })));
+  opened.push(repository);
+  const tickets = settings.mode === "mongodb" ? await MongoTicketRepository.connect(settings.uri!, settings.database) : new InMemoryTicketRepository();
+  opened.push(tickets);
+  const canvases = settings.mode === "mongodb" ? await MongoCanvasRepository.connect(settings.uri!, settings.database) : new InMemoryCanvasRepository();
+  opened.push(canvases);
+  const activity = settings.mode === "mongodb" ? await MongoActivityRepository.connect(settings.uri!, settings.database) : new InMemoryActivityRepository();
+  opened.push(activity);
+  const app = buildApp({ repository, tickets, canvases, activity, scope: settings.scope, token: settings.token,
+    storage: settings.mode, storageLabel: settings.mode === "mongodb" ? settings.label : "Temporary storage", logger: true });
+  for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void app.close(); });
+  await app.listen({ host: settings.host, port: settings.port });
+} catch {
+  await Promise.allSettled(opened.map(resource => resource.close()));
+  console.error("API startup failed. Check server-only MongoDB settings, network access, database permissions and the local port. No demo fallback was started.");
+  process.exitCode = 1;
 }
-await app.listen({ host, port: Number(process.env.PORT ?? 4317) });
