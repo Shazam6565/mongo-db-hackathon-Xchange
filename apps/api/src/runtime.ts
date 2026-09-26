@@ -11,7 +11,7 @@ export async function createRuntime(settings: ReturnType<typeof loadConfig>, tea
   const opened: { close(): Promise<void> }[] = [];
   try {
     const repository = settings.mode === "mongodb"
-      ? await MongoLessonRepository.connect(settings.uri!, settings.database)
+      ? await MongoLessonRepository.connect(settings.uri!, settings.database, settings.vector)
       : new InMemoryLessonRepository(demoLessons.map(lesson => ({ ...lesson, ...settings.scope })));
     opened.push(repository);
     const tickets = settings.mode === "mongodb" ? await MongoTicketRepository.connect(settings.uri!, settings.database) : new InMemoryTicketRepository();
@@ -20,7 +20,7 @@ export async function createRuntime(settings: ReturnType<typeof loadConfig>, tea
     opened.push(canvases);
     const activity = settings.mode === "mongodb" ? await MongoActivityRepository.connect(settings.uri!, settings.database) : new InMemoryActivityRepository();
     opened.push(activity);
-    const app = buildApp({ repository, tickets, canvases, activity, scope: settings.scope, token: settings.token, teamAuth,
+    const app = buildApp({ repository, tickets, canvases, activity, scope: settings.scope, token: settings.token, teamAuth, vector: settings.vector,
       storage: settings.mode, storageLabel: settings.mode === "mongodb" ? settings.label : "Temporary storage" });
     await app.ready();
     return app;

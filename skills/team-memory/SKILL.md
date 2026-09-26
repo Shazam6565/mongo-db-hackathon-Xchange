@@ -40,7 +40,7 @@ node scripts/client.mjs harness                # active version and history, wit
 
 ## Propose lessons
 
-Submit a bounded, evidence-backed candidate with `node scripts/client.mjs propose ./candidate.json OPERATION_UUID` using the API's `CandidateInputSchema`. Include source references, scope of applicability, proposed instructions and verification steps. Retain the UUID and payload; identical retries return the same candidate, and a 409 requires reconciliation. The UUID is optional for older clients: without it, do not auto-retry an uncertain result; inspect the catalog first. The existing Pi `/share-lesson` command offers the same candidate path without retry protection. Only the existing evaluation gate can publish a candidate. Do not store private conversations, hidden reasoning or secrets as lessons.
+Submit a bounded, evidence-backed candidate with `node scripts/client.mjs propose ./candidate.json OPERATION_UUID` using the API's `CandidateInputSchema`. Include source references, scope of applicability, proposed instructions and verification steps. Retain the UUID and payload; identical retries return the same candidate, and a 409 requires reconciliation. The UUID is optional for older clients: without it, do not auto-retry an uncertain result; inspect the catalog first. Only the evaluation gate can publish a candidate submitted this way. The Pi extension's `share_lesson` tool and `/share-lesson` command are different: they publish immediately through `POST /v1/lessons/share`, without evaluation. Do not store private conversations, hidden reasoning or secrets as lessons.
 
 Use [the candidate example](../../examples/lesson-candidate.json) and
 [the contract](../../packages/contracts/src/index.ts) for the current input shape.

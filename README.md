@@ -37,7 +37,7 @@ This is a **runnable skeleton, not the finished learning system**.
 | Automatic extraction of lessons from agent failures | Planned |
 | Baseline/candidate evaluations and publication gate | Fixed-suite scorer with version-checked publish/reject. No model calls |
 | Harness versions: rollout on publish, rollback, audit and consumption history | Implemented; see `/?view=harness`. `client.mjs sync-skills` installs the active version as agent skills |
-| Semantic retrieval / embedding generation / Atlas Vector Search | Adapter interface only |
+| Ticket-aware ordering with Atlas Vector Search (Automated Embedding, Voyage `voyage-4`) | Implemented; see [MongoDB setup](infra/mongodb/README.md) |
 | Live synchronization through Change Streams and SSE | Design only; refresh is currently per run/manual |
 | Individual team grants, roles and browser sessions | Implemented with local security checks; real member enrollment pending |
 | Private credential issuance and authenticated access checks | Implemented; run `npm run access:issue -- --help` and follow the onboarding guide |
@@ -46,7 +46,8 @@ This is a **runnable skeleton, not the finished learning system**.
 
 No LLM calls or paid cloud resources are created by `npm run dev` or `npm run evaluate`. The single published lesson
 in memory mode is synthetic demo data, explicitly marked `origin: demo`. Submitting a lesson
-creates a **candidate**; it cannot self-publish. `POST /v1/lessons/:id/evaluate` scores that candidate
+through `POST /v1/lessons` creates a **candidate**. Pi agents instead share through `POST /v1/lessons/share`,
+which publishes immediately with no evaluation (audited as `lesson.published`). `POST /v1/lessons/:id/evaluate` scores a candidate
 against `evals/triage-suite.json` and publishes only when the gate passes for the expected version.
 
 ## Quick start
@@ -117,12 +118,16 @@ If you changed the API token, pass the matching value to Pi.
 Inside Pi:
 
 ```text
+/ticket DEMO-118
 /team-memory
 /share-lesson Check repeated events | Inspect event ID deduplication before classifying duplicate effects | DEMO-101
 ```
 
-The first command refreshes `.team-memory/MEMORY.md` under Pi's current working directory. The second
-submits a candidate and leaves it unpublished. The extension also fetches memory before each new
+`/ticket` sets the session's ticket (or set `TEAM_TICKET`). Memory is then ordered by relevance to that
+ticket plus each message. `/team-memory` refreshes `.team-memory/MEMORY.md` under Pi's current working
+directory. The agent shares confirmed findings on its own through the `share_lesson` tool, and `/share-lesson`
+does the same by hand (optional 4th part: comma-separated components). Both publish immediately to MongoDB,
+with no review step, and every agent receives the lesson on its next message. The extension also fetches memory before each new
 agent run and supplies a current snapshot to the model, removing older injected snapshots from
 the outgoing context. It does not change the model's weights or automatically execute lesson text.
 
@@ -197,8 +202,10 @@ the server. Hosted `/session` supports GET (status), POST (sign in), DELETE (sig
 | GET | `/v1/tickets` | Up to 100 recent scoped tickets |
 | GET | `/v1/tickets/:id` | One scoped ticket, including older records linked directly |
 | POST | `/v1/tickets` | Create a manual ticket; requires a UUID `Idempotency-Key`. Same-request retries return the same record; conflicting references return 409 |
-| GET | `/v1/memory` | Up to 10 recent lessons from the active harness version, with `harnessVersion`. Records `x-engineer-id` and the returned lesson versions. No semantic ranking yet |
+| GET | `/v1/memory` | Up to 10 recent lessons from the active harness version, with `harnessVersion`. Records `x-engineer-id` and the returned lesson versions |
+| POST | `/v1/memory/search` | Body: `{ "query": "...", "ticketKey": "DEMO-118" }`. Lessons from the active harness version (up to 10), ordered by Atlas Vector Search relevance to the ticket and query, with scores in `retrieval`. Falls back to recency when vector search is unavailable. Readers may call it |
 | POST | `/v1/lessons` | Validate and persist a candidate; cannot publish. With a UUID `Idempotency-Key`, a retry returns the same candidate and different content under the same key returns 409 |
+| POST | `/v1/lessons/share` | Same body and `Idempotency-Key` handling as `/v1/lessons`, but publishes at once without evaluation. Used by the Pi extension. Writers only |
 | POST | `/v1/lessons/:id/evaluate` | Score a candidate against the fixed suite. Body: `{ "expectedVersion": 1 }`. Publishes or rejects only when that version still matches |
 | GET | `/v1/evaluations` | Recent fixed-suite scores for this scope. Expected answers are not included |
 | GET | `/v1/audit` | Proposal, evaluation, publication, rejection, harness-change and memory-consumption events |
