@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test apps/api/src/*.test.ts apps/evaluator/src/*.test.ts packages/contracts/src/*.test.ts skills/team-memory/scripts/*.test.mjs",
     "build": "npm run typecheck && npm run build --workspace @team-memory/dashboard",
-    "check": "npm run test && npm run build",
+    "skills:check": "node scripts/check-skills.mjs",
+    "check": "npm run skills:check && npm run test && npm run build",
     "seed": "npm run seed --workspace @team-memory/api --"
   },
   "devDependencies": {

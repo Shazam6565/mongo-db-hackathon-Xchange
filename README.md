@@ -14,6 +14,8 @@ loop from one engineer's failure to an improvement in another engineer's workflo
 For teammates and agents joining the shared workspace, start with
 [team access and onboarding](docs/team-access.md): individual credentials, role
 permissions, browser sign-in, agent read/write commands, rotation and revocation.
+The maintained [project operating skills](skills/README.md) cover access, records,
+canvases, memory, evaluation, data setup and hosting, discoverable from a fresh clone.
 
 ## Repository status
 
