@@ -7,16 +7,25 @@ import { AUTH_EXPIRED_EVENT } from "../auth/session.js";
 export const LessonsResponse = z.object({ scope: ScopeSchema, lessons: z.array(LessonSchema) });
 export const TicketsResponse = z.object({ scope: ScopeSchema, tickets: z.array(TicketRecordSchema) });
 export const HealthResponse = z.object({ storage: z.enum(["memory", "mongodb"]), storageLabel: z.string().optional() });
+/** status 0 means the API was not reached or did not answer in time. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
 export async function request(path: string, init: RequestInit = {}) {
   const signal = init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000);
-  const response = await fetch(`/api${path}`, { ...init, signal });
+  let response: Response;
+  try { response = await fetch(`/api${path}`, { ...init, signal }); }
+  catch (error) {
+    if (init.signal?.aborted) throw error;
+    throw new ApiError(error instanceof DOMException && error.name === "TimeoutError" ? "The team API did not answer in time." : "Could not reach the team API. Check that it is running.", 0);
+  }
   if (!response.ok) {
     if (response.status === 401) {
       window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
-      throw new Error("Your session expired. Sign in again.");
+      throw new ApiError("Your session expired. Sign in again.", 401);
     }
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error ?? `Request failed (${response.status}). Check the API and try again.`);
+    throw new ApiError(body?.error ?? `Request failed (${response.status}). Check the API and try again.`, response.status);
   }
   return response.json();
 }
