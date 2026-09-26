@@ -4,7 +4,12 @@ import type {
   AuditEvent, CandidateInput, EvaluationResult, EvaluationScores, Lesson, LessonVersionRef, Scope,
 } from "@team-memory/contracts";
 import type { HarnessVersionRecord, LessonRef } from "../../../packages/contracts/src/harness.js";
+import { LessonSchema } from "../../../packages/contracts/src/index.js";
 import { stableUuid } from "./ids.js";
+
+// Serve only contract fields. Other tools may add fields to stored lessons (search text,
+// embeddings); passing them through would break every client that validates lessons strictly.
+const lessonFields = { _id: 0, ...Object.fromEntries(Object.keys(LessonSchema.shape).map((key) => [key, 1])) };
 
 export class RepositoryError extends Error {
   readonly status: number;
@@ -326,7 +331,7 @@ export class MongoLessonRepository implements LessonRepository {
 
   private async resolve(scope: Scope, current: HarnessVersionRecord | null, session?: ClientSession): Promise<ActiveLessons> {
     const ids = (await this.activeRefs(scope, current, session)).map((ref) => ref.id);
-    const lessons = ids.length ? await this.lessons.find({ ...scope, id: { $in: ids } }, { session, projection: { _id: 0 } }).toArray() : [];
+    const lessons = ids.length ? await this.lessons.find({ ...scope, id: { $in: ids } }, { session, projection: lessonFields }).toArray() : [];
     return { version: current?.number ?? 0, versionId: current?.id ?? null, lessons: lessons.sort(byRecent) };
   }
 
@@ -341,12 +346,12 @@ export class MongoLessonRepository implements LessonRepository {
   async list(scope: Scope, status?: Lesson["status"]): Promise<Lesson[]> {
     return this.lessons.find(
       { ...scope, ...(status ? { status } : {}) },
-      { projection: { _id: 0 } },
+      { projection: lessonFields },
     ).sort({ updatedAt: -1 }).limit(100).toArray();
   }
 
   async get(scope: Scope, id: string): Promise<Lesson | null> {
-    return this.lessons.findOne({ ...scope, id }, { projection: { _id: 0 } });
+    return this.lessons.findOne({ ...scope, id }, { projection: lessonFields });
   }
 
   async propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
@@ -355,7 +360,7 @@ export class MongoLessonRepository implements LessonRepository {
     // instead of creating a second candidate or a second audit event.
     try { await this.lessons.updateOne({ id: candidate.id }, { $setOnInsert: { ...candidate } }, { upsert: true }); }
     catch (error) { if (!isDuplicateKey(error)) throw error; }
-    const found = await this.lessons.findOne({ id: candidate.id }, { projection: { _id: 0 } });
+    const found = await this.lessons.findOne({ id: candidate.id }, { projection: lessonFields });
     if (!found) throw new RepositoryError("The proposal could not be confirmed. Retry with the same Idempotency-Key.", 503);
     const stored = sameProposal(found, scope, input);
     const event = proposalEvent(stored);
@@ -370,7 +375,7 @@ export class MongoLessonRepository implements LessonRepository {
       let committed: EvaluationCommit | undefined;
       await session.withTransaction(async () => {
         const current = requireCandidate(
-          await this.lessons.findOne({ ...scope, id: lessonId }, { session, projection: { _id: 0 } }),
+          await this.lessons.findOne({ ...scope, id: lessonId }, { session, projection: lessonFields }),
           expectedVersion,
         );
         const at = new Date().toISOString();
