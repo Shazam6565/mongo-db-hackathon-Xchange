@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { MongoClient, type Collection } from "mongodb";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { ENGINEER_ID_HEADER, engineerIdFromHeader, type Scope } from "@team-memory/contracts";
+import { ENGINEER_ID_HEADER, engineerIdFromHeader, type Scope } from "../../../packages/contracts/src/index.js";
 import { CanvasRecordSchema, CanvasWriteSchema, type CanvasRecord, type CanvasWrite, type CanvasReference } from "../../../packages/contracts/src/canvas.js";
 import type { LessonRepository } from "./repository.js";
 import type { TicketRepository } from "./tickets.js";

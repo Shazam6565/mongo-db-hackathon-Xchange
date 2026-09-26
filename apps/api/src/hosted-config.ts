@@ -1,4 +1,4 @@
-import { ScopeSchema } from "@team-memory/contracts";
+import { ScopeSchema } from "../../../packages/contracts/src/index.js";
 import { validateTeamAuthConfig } from "./auth.js";
 import { loadConfig } from "./config.js";
 

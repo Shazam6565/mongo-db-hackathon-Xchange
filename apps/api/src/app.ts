@@ -5,8 +5,8 @@ import { InMemoryCanvasRepository, registerCanvases, type CanvasRepository } fro
 import { InMemoryTicketRepository, registerTickets, type TicketRepository } from "./tickets.js";
 import {
   CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, engineerIdFromHeader, type Scope,
-} from "@team-memory/contracts";
-import { EVALUATOR_VERSION, compareLesson, loadSuite } from "@team-memory/evaluator";
+} from "../../../packages/contracts/src/index.js";
+import { EVALUATOR_VERSION, compareLesson, loadSuite } from "../../evaluator/src/compare.js";
 import { HarnessRollbackSchema } from "../../../packages/contracts/src/harness.js";
 import { RepositoryError, type LessonRepository } from "./repository.js";
 import { createTeamAuthentication, type TeamAuthConfig } from "./auth.js";

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { MongoClient, type Collection, type Filter } from "mongodb";
 import { z } from "zod";
-import { ENGINEER_ID_HEADER, engineerIdFromHeader, type Scope } from "@team-memory/contracts";
+import { ENGINEER_ID_HEADER, engineerIdFromHeader, type Scope } from "../../../packages/contracts/src/index.js";
 import {
   ActivityInputSchema, ActivityQuerySchema, ActivityRecordSchema,
   type ActivityInput, type ActivityRecord, type ActivityRoot, type ActivityQuery,
