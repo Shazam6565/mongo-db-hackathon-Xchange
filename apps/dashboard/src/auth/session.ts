@@ -3,9 +3,9 @@ import { z } from "zod";
 export const AUTH_EXPIRED_EVENT = "team-memory:auth-expired";
 
 const SessionSchema = z.union([
-  z.object({ authenticated: z.literal(false), mode: z.literal("team") }),
+  z.object({ authenticated: z.literal(false), mode: z.literal("team"), guestRead: z.boolean().optional() }),
   z.object({ authenticated: z.literal(true), mode: z.literal("local") }),
-  z.object({ authenticated: z.literal(true), mode: z.literal("team"), actorId: z.string().min(1), role: z.string().min(1) }),
+  z.object({ authenticated: z.literal(true), mode: z.literal("team"), actorId: z.string().min(1), role: z.string().min(1), guestRead: z.boolean().optional() }),
 ]);
 
 export type Session = z.infer<typeof SessionSchema>;

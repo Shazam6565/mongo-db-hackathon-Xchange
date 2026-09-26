@@ -69,6 +69,27 @@ test("browser cookies require exact origin on writes while bearer agents work wi
   } finally { await app.close(); }
 });
 
+test("guests read the shared scope without a token but cannot write, recall memory or claim an identity", async () => {
+  const app = buildApp({ repository: new InMemoryLessonRepository(), token: "local-must-not-work", teamAuth: { ...config, guestRead: true }, scope, storage: "memory" });
+  try {
+    assert.deepEqual((await app.inject({ url: "/session" })).json(), { authenticated: false, mode: "team", guestRead: true });
+    await app.inject({ method: "POST", url: "/v1/activity", headers: { ...headers("alice"), "idempotency-key": randomUUID() }, payload: observation });
+    for (const url of ["/v1/activity", "/v1/tickets", "/v1/lessons", "/v1/canvases", "/v1/harness", "/v1/audit", "/v1/evaluations"]) {
+      assert.equal((await app.inject({ url })).statusCode, 200, url);
+    }
+    assert.equal((await app.inject({ url: "/v1/activity" })).json().records[0].actorLabel, "alice");
+    for (const url of ["/v1/access", "/v1/memory", "/v1/harness/active"]) assert.equal((await app.inject({ url })).statusCode, 401, url);
+    for (const [method, url] of [["POST", "/v1/activity"], ["POST", "/v1/tickets"], ["POST", "/v1/lessons"], ["PUT", `/v1/canvases/${randomUUID()}`], ["POST", "/v1/harness/rollback"]] as const) {
+      assert.equal((await app.inject({ method, url, headers: { origin: config.publicOrigin, "idempotency-key": randomUUID() }, payload: observation })).statusCode, 401, url);
+    }
+    // A wrong or revoked agent token must fail loudly instead of reading as a guest.
+    assert.equal((await app.inject({ url: "/v1/activity", headers: { authorization: "Bearer local-must-not-work" } })).statusCode, 401);
+    assert.equal((await app.inject({ url: "/v1/access", headers: headers("viewer") })).json().actorId, "viewer");
+    const audit = (await app.inject({ url: "/v1/audit" })).json();
+    assert.ok(!audit.events.some((event: { kind: string }) => event.kind === "memory.consumed"));
+  } finally { await app.close(); }
+});
+
 test("local owner mode keeps its existing bearer contract and needs no browser sign-in", async () => {
   const app = buildApp({ repository: new InMemoryLessonRepository(), token: "local-test", scope, storage: "memory" });
   try {

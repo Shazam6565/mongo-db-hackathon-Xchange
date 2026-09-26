@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { MongoClient, type ClientSession, type Collection } from "mongodb";
 // Relative path: the hosted function cannot load workspace packages at runtime.
 import {
-  lessonSearchText,
+  LessonSchema, lessonSearchText,
   type AuditEvent, type CandidateInput, type EvaluationResult, type EvaluationScores, type Lesson, type LessonVersionRef, type Scope,
 } from "../../../packages/contracts/src/index.js";
 import type { HarnessVersionRecord, LessonRef } from "../../../packages/contracts/src/harness.js";
@@ -28,7 +28,9 @@ export type LessonSearchResult =
 
 // Lessons as stored in MongoDB. searchText feeds Atlas Automated Embedding and is never returned.
 type StoredLesson = Lesson & { searchText?: string };
-const HIDDEN_FIELDS = { _id: 0, searchText: 0 } as const;
+// Serve only contract fields. Other tools may add fields to stored lessons (search text,
+// embeddings); passing them through would break every client that validates lessons strictly.
+const lessonFields = { _id: 0, ...Object.fromEntries(Object.keys(LessonSchema.shape).map((key) => [key, 1])) };
 
 export interface LessonRepository {
   list(scope: Scope, status?: Lesson["status"]): Promise<Lesson[]>;
@@ -372,7 +374,7 @@ export class MongoLessonRepository implements LessonRepository {
 
   private async resolve(scope: Scope, current: HarnessVersionRecord | null, session?: ClientSession): Promise<ActiveLessons> {
     const ids = (await this.activeRefs(scope, current, session)).map((ref) => ref.id);
-    const lessons = ids.length ? await this.lessons.find({ ...scope, id: { $in: ids } }, { session, projection: HIDDEN_FIELDS }).toArray() : [];
+    const lessons = ids.length ? await this.lessons.find({ ...scope, id: { $in: ids } }, { session, projection: lessonFields }).toArray() : [];
     return { version: current?.number ?? 0, versionId: current?.id ?? null, lessons: lessons.sort(byRecent) };
   }
 
@@ -387,12 +389,12 @@ export class MongoLessonRepository implements LessonRepository {
   async list(scope: Scope, status?: Lesson["status"]): Promise<Lesson[]> {
     return this.lessons.find(
       { ...scope, ...(status ? { status } : {}) },
-      { projection: HIDDEN_FIELDS },
+      { projection: lessonFields },
     ).sort({ updatedAt: -1 }).limit(100).toArray();
   }
 
   async get(scope: Scope, id: string): Promise<Lesson | null> {
-    return this.lessons.findOne({ ...scope, id }, { projection: HIDDEN_FIELDS });
+    return this.lessons.findOne({ ...scope, id }, { projection: lessonFields });
   }
 
   // An Atlas index can exist but still be building. Cache the answer briefly so each
@@ -434,8 +436,8 @@ export class MongoLessonRepository implements LessonRepository {
             ] },
           },
         },
-        { $set: { score: { $meta: "vectorSearchScore" } } },
-        { $unset: ["_id", "searchText"] },
+        // Contract fields only, plus the relevance score.
+        { $project: { ...lessonFields, score: { $meta: "vectorSearchScore" } } },
       ]).toArray();
       return { available: true, hits: docs.map(({ score, ...lesson }) => ({ lesson, score })) };
     } catch (error) {
@@ -453,7 +455,7 @@ export class MongoLessonRepository implements LessonRepository {
     // searchText is written with the lesson so Atlas embeds it without a separate pipeline.
     try { await this.lessons.updateOne({ id: candidate.id }, { $setOnInsert: { ...candidate, searchText: lessonSearchText(candidate) } }, { upsert: true }); }
     catch (error) { if (!isDuplicateKey(error)) throw error; }
-    const found = await this.lessons.findOne({ id: candidate.id }, { projection: HIDDEN_FIELDS });
+    const found = await this.lessons.findOne({ id: candidate.id }, { projection: lessonFields });
     if (!found) throw new RepositoryError("The proposal could not be confirmed. Retry with the same Idempotency-Key.", 503);
     const stored = sameProposal(found, scope, input);
     const event = proposalEvent(stored);
@@ -469,7 +471,7 @@ export class MongoLessonRepository implements LessonRepository {
     try {
       let stored: Lesson | undefined;
       await session.withTransaction(async () => {
-        const existing = await this.lessons.findOne({ id: lesson.id }, { session, projection: HIDDEN_FIELDS });
+        const existing = await this.lessons.findOne({ id: lesson.id }, { session, projection: lessonFields });
         // An identical retry returns the first result; different content under the same key is a 409.
         if (existing) { stored = sameProposal(existing, scope, input); return; }
         const latest = await this.latestHarness(scope, session);
@@ -497,7 +499,7 @@ export class MongoLessonRepository implements LessonRepository {
       let committed: EvaluationCommit | undefined;
       await session.withTransaction(async () => {
         const current = requireCandidate(
-          await this.lessons.findOne({ ...scope, id: lessonId }, { session, projection: HIDDEN_FIELDS }),
+          await this.lessons.findOne({ ...scope, id: lessonId }, { session, projection: lessonFields }),
           expectedVersion,
         );
         const at = new Date().toISOString();

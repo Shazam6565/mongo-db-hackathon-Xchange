@@ -26,7 +26,8 @@ access or switch to another account as a connectivity shortcut.
 
 Run repository checks and keep the previous deployment identity for rollback.
 After the authorized deploy, verify JSON `/health` reports MongoDB, anonymous
-`/v1/access` returns 401, and an enrolled caller gets its intended actor/role/scope.
+`/v1/access` and anonymous writes return 401 (anonymous reads succeed only with
+`TEAM_GUEST_READ=true`), and an enrolled caller gets its intended actor/role/scope.
 Sign in through the canonical frontend URL. Exercise a marked write with one actor,
 read it with another and in the UI, and confirm persistence in a fresh API instance.
 Check reader writes and writer publication are denied. Report local tests, remote

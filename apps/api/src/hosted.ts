@@ -16,10 +16,12 @@ function response(status: number, error: string) {
 export function createHostedHandler(getApp: () => Promise<FastifyInstance>) {
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
-    // Rewrites preserve search filters and supply the original API path.
+    // Rewrites preserve search filters and supply the original API path. Vercel also copies the
+    // rewrite source's `:path*` segment into the query, which strict filters (activity) reject.
     const route = url.searchParams.get("route");
     const path = route ? `/${route}` : url.pathname.replace(/^\/api(?=\/)/, "");
     url.searchParams.delete("route");
+    if (route) url.searchParams.delete("path");
     if (!(path === "/health" || path === "/session" || path.startsWith("/v1/")) || /[?#\\]/.test(path)) return response(404, "API route not found.");
     const methods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const;
     type Method = typeof methods[number];

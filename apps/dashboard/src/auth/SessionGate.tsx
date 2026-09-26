@@ -1,15 +1,18 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { AUTH_EXPIRED_EVENT, getSession, SessionError, signIn, signOut, type Session } from "./session.js";
-import { SessionContext } from "./SessionContext.js";
+import { SessionContext, type WorkspaceSession } from "./SessionContext.js";
 import "./auth.css";
 
 type ReadySession = Extract<Session, { authenticated: true }>;
-type State = { status: "checking" } | { status: "ready"; session: ReadySession } | { status: "signed-out"; message?: string } | { status: "unavailable"; message: string };
+type State = { status: "checking" } | { status: "ready"; session: ReadySession } | { status: "guest" } | { status: "signed-out"; message?: string } | { status: "unavailable"; message: string };
 const message = (error: unknown) => error instanceof SessionError ? error.message : "The team API is unavailable. Please retry.";
+const guestSession: WorkspaceSession = { authenticated: false, mode: "guest" };
 
 export function SessionGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ status: "checking" });
   const [attempt, setAttempt] = useState(0);
+  // When the API allows guests, anyone can read the workspace and signs in only to change it.
+  const [guestRead, setGuestRead] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -17,7 +20,9 @@ export function SessionGate({ children }: { children: ReactNode }) {
     const control = new AbortController();
     setState({ status: "checking" });
     getSession(control.signal).then(session => {
-      if (!control.signal.aborted) setState(session.authenticated ? { status: "ready", session } : { status: "signed-out" });
+      if (control.signal.aborted) return;
+      setGuestRead("guestRead" in session && session.guestRead === true);
+      setState(session.authenticated ? { status: "ready", session } : session.guestRead ? { status: "guest" } : { status: "signed-out" });
     }).catch(error => {
       if (!control.signal.aborted) setState(error instanceof SessionError && error.kind === "unauthorized" ? { status: "signed-out" } : { status: "unavailable", message: message(error) });
     });
@@ -29,9 +34,8 @@ export function SessionGate({ children }: { children: ReactNode }) {
       setActionError("");
       setState(current => {
         if (current.status === "unavailable") return current;
-        return current.status === "ready" && current.session.mode === "local"
-          ? { status: "unavailable", message: "The local API rejected its configured credentials. Check the server connection and retry." }
-          : { status: "signed-out", message: "Your session expired. Sign in to continue." };
+        if (current.status === "ready" && current.session.mode === "local") return { status: "unavailable", message: "The local API rejected its configured credentials. Check the server connection and retry." };
+        return { status: "signed-out", message: current.status === "guest" ? "Sign in to continue." : "Your session expired. Sign in to continue." };
       });
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, expired);
@@ -60,7 +64,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
     try {
       const session = await signOut();
       if (session.authenticated) setActionError("Sign-out was not completed. Please retry.");
-      else setState({ status: "signed-out" });
+      else { setGuestRead(session.guestRead === true); setState(session.guestRead ? { status: "guest" } : { status: "signed-out" }); }
     } catch (error) { setActionError(message(error)); }
     finally { setBusy(false); }
   }
@@ -75,18 +79,27 @@ export function SessionGate({ children }: { children: ReactNode }) {
     </div></SessionContext.Provider>;
   }
 
+  if (state.status === "guest") {
+    return <SessionContext.Provider value={guestSession}><div className="team-session-shell">
+      <div className="team-session-bar" aria-label="Team session"><span>Viewing read-only <span className="team-session-role">· sign in to make changes</span></span>
+        <button type="button" onClick={() => { setActionError(""); setState({ status: "signed-out" }); }}>Sign in</button>
+      </div>{children}
+    </div></SessionContext.Provider>;
+  }
+
   return <main className="team-auth">
     <a className="team-auth-brand" href="/">Team Memory</a>
     {state.status === "checking" ? <p role="status">Connecting to the team…</p> : state.status === "unavailable" ? <section aria-labelledby="connection-heading">
       <h1 id="connection-heading">Connection unavailable</h1><p role="alert">{state.message}</p><button type="button" onClick={() => setAttempt(value => value + 1)}>Retry connection</button>
     </section> : <section aria-labelledby="signin-heading">
-      <h1 id="signin-heading">Team sign-in</h1><p>Use your team access token to open the workspace.</p>
+      <h1 id="signin-heading">Team sign-in</h1><p>{guestRead ? "Sign in with your personal access token to add records, edit canvases or publish lessons." : "Use your team access token to open the workspace."}</p>
       {state.message && <p role="status">{state.message}</p>}
       <form onSubmit={event => void submit(event)}>
         <label htmlFor="team-token">Access token</label>
-        <div className="team-auth-entry"><input id="team-token" name="token" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} required disabled={busy} aria-describedby={actionError ? "signin-error" : undefined} /><button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button></div>
+        <div className="team-auth-entry"><input id="team-token" name="token" type="password" autoFocus={guestRead} autoComplete="off" autoCapitalize="none" spellCheck={false} required disabled={busy} aria-describedby={actionError ? "signin-error" : undefined} /><button type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button></div>
       </form>
       {actionError && <p id="signin-error" role="alert">{actionError}</p>}
+      {guestRead && <button type="button" className="team-auth-back" onClick={() => { setActionError(""); setState({ status: "guest" }); }} disabled={busy}>Continue without signing in</button>}
     </section>}
   </main>;
 }

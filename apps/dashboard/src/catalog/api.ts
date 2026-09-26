@@ -4,7 +4,9 @@ import { TicketRecordSchema, type TicketInput } from "../../../../packages/contr
 import { z } from "zod";
 import { AUTH_EXPIRED_EVENT } from "../auth/session.js";
 
-export const LessonsResponse = z.object({ scope: ScopeSchema, lessons: z.array(LessonSchema) });
+// Stored lessons may carry fields added by other tools (for example search text); ignore them.
+export const ApiLessonSchema = LessonSchema.strip();
+export const LessonsResponse = z.object({ scope: ScopeSchema, lessons: z.array(ApiLessonSchema) });
 export const TicketsResponse = z.object({ scope: ScopeSchema, tickets: z.array(TicketRecordSchema) });
 export const HealthResponse = z.object({ storage: z.enum(["memory", "mongodb"]), storageLabel: z.string().optional() });
 /** status 0 means the API was not reached or did not answer in time. */

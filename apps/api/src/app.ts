@@ -2,6 +2,7 @@ import { InMemoryActivityRepository, registerActivity, type ActivityRepository }
 import Fastify from "fastify";
 import { z } from "zod";
 import { InMemoryCanvasRepository, registerCanvases, type CanvasRepository } from "./canvases.js";
+import { registerGitHistory } from "./git-history.js";
 import { InMemoryTicketRepository, registerTickets, type TicketRepository } from "./tickets.js";
 import {
   CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, MemorySearchRequestSchema, composeMemoryQuery, engineerIdFromHeader,
@@ -70,7 +71,10 @@ export function buildApp(options: AppOptions) {
     api.addHook("onRequest", async (request, reply) => {
       if (teamAuth) {
         const principal = teamAuth.authenticate(request);
-        if (!principal) return reply.code(401).send({ error: "Sign in with a valid team access token." });
+        if (!principal) {
+          if (teamAuth.admitsGuest(request)) { request.headers[ENGINEER_ID_HEADER] = "guest"; return; }
+          return reply.code(401).send({ error: "Sign in with a valid team access token." });
+        }
         if (principal.via === "cookie" && !["GET", "HEAD", "OPTIONS"].includes(request.method) && !teamAuth.sameOrigin(request)) {
           return reply.code(403).send({ error: "State-changing requests must originate from this application." });
         }
@@ -90,6 +94,7 @@ export function buildApp(options: AppOptions) {
     registerTickets(api, tickets, options.scope);
     registerActivity(api, activity, options.scope, options.repository);
     registerCanvases(api, canvases, options.repository, tickets, options.scope);
+    registerGitHistory(api);
     // This route runs behind the same authentication hook as all record operations.
     api.get("/access", async (request) => {
       const principal = teamAuth?.authenticate(request);

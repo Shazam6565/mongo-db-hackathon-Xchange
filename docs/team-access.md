@@ -5,6 +5,21 @@ The frontend and agents use the same scoped API. Only the API holds the MongoDB
 connection string. This guide is the onboarding and offboarding contract; see
 [live hosting](frontend-sharing.md) for deployment variables and connection evidence.
 
+## How access works
+
+| Who | Can do | Needs |
+| --- | --- | --- |
+| Anyone with the link | Browse Catalog, Canvas, Timeline and Harness, read-only | Nothing: open https://mongo-db-hackathon-xchange.vercel.app |
+| Teammate | Add tickets and activity, edit canvases | A personal `writer` token, pasted once into **Sign in**; the browser stays signed in for 30 days |
+| Evaluation operator | Also publish through the fixed-suite gate and roll back lessons | A personal `evaluator` token |
+| Agent installation | Read and write through the same API, with server-derived attribution | Its own token as `TEAM_API_TOKEN` |
+
+Read-only guests exist only when the deployment sets `TEAM_GUEST_READ=true`, which
+the live deployment does. Guests cannot write, load memory (`/v1/memory`,
+`/v1/harness/active`) or call `/v1/access`, so they never appear as a lesson
+consumer. A request that presents a wrong or revoked token gets 401, not guest
+access, so a misconfigured agent fails loudly instead of silently reading.
+
 ## Identities and permissions
 
 | Identity | Credential | Allowed use |
@@ -24,6 +39,7 @@ All enrolled actors can read that scope; there are no per-record private permiss
 
 | Role | Read records and memory | Add tickets/activity/candidates; edit canvases | Evaluate/publish |
 | --- | --- | --- | --- |
+| guest (no token, when enabled) | Records only, not memory | No | No |
 | `reader` | Yes | No | No |
 | `writer` | Yes | Yes | No |
 | `evaluator` | Yes | Yes | Through the fixed-suite gate only |
@@ -75,10 +91,15 @@ checkouts too. Preparation does not activate access or contact MongoDB/Vercel.
 
 ## Teammate: use the frontend
 
-Open the canonical app URL, enter your personal team token in the sign-in form, and
-open Catalog, Canvas or Timeline. Sign-in establishes an eight-hour Secure, HttpOnly
-cookie; the app does not persist the token in browser storage. A different deployment
-alias cannot establish a session unless it matches the configured origin.
+Open the canonical app URL; the workspace opens read-only. To make changes, choose
+**Sign in** in the top bar and paste your personal token. Sign-in establishes a
+30-day Secure, HttpOnly cookie; the app does not persist the token in browser storage.
+Sign in at the canonical URL: other deployment addresses show the workspace but refuse
+sign-in. On a Mac, copy your token from its private file without displaying it:
+
+```sh
+grep '^TEAM_API_TOKEN=' /absolute/private/you/credential.env | cut -d= -f2- | tr -d '\n' | pbcopy
+```
 
 Writers can use **Add ticket** and save canvas edits. Readers can inspect records;
 the API rejects writes even if a UI control is visible. Refresh after an agent writes
@@ -130,7 +151,8 @@ harnesses can use the portable client without installing Pi.
 ## Verify, rotate and revoke
 
 Before declaring shared access ready, check `/health` returns JSON with
-`storage: "mongodb"`, and anonymous `/v1/access` returns 401. Verify two separate
+`storage: "mongodb"`, anonymous `/v1/access` returns 401, and anonymous writes return
+401 (anonymous record reads return 200 only when guest reading is on). Verify two separate
 writer identities: create a marked ticket with one, read it with the other and in
 the frontend, then reverse roles for an activity record. Confirm the activity has
 the authenticated actor. Verify reader writes and writer publication return 403,

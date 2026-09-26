@@ -1,13 +1,12 @@
 import { ActivityRecordSchema, type ActivityRecord } from "../../../../packages/contracts/src/activity.js";
 import { AddActivity } from "../activity/AddActivity.js";
-import { LessonSchema } from "@team-memory/contracts";
 import { AppFrame } from "../AppFrame.js";
 import { canWrite, useSession } from "../auth/SessionContext.js";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { TicketRecordSchema, type TicketRecord } from "../../../../packages/contracts/src/tickets.js";
 import { AddTicket } from "./AddTicket.js";
 import { ItemDetails } from "./ItemDetails.js";
-import { errorMessage, loadCatalog, request } from "./api.js";
+import { ApiLessonSchema, errorMessage, loadCatalog, request } from "./api.js";
 import { columns, defaultView, filterItems, itemKey, label, projectItems, readView, statuses, type CatalogItem, type ColumnId, type TableView } from "./model.js";
 import "./catalog.css";
 
@@ -89,7 +88,7 @@ export function Catalog() {
     if (!/^(ticket|lesson|observation|decision|application|outcome|correction):/.test(selection)) { setDetailError("Unknown record type."); return; }
     const active = new AbortController();
     request(`/v1/${selection.startsWith("ticket:") ? "tickets" : selection.startsWith("lesson:") ? "lessons" : "activity"}/${encodeURIComponent(selection.slice(selection.indexOf(":") + 1))}`, { signal: active.signal })
-      .then(value => { if (!active.signal.aborted) setExtraItem(selection.startsWith("ticket:") ? projectItems([], [TicketRecordSchema.parse(value)])[0] : selection.startsWith("lesson:") ? projectItems([LessonSchema.parse(value)], [])[0] : projectItems([], [], [ActivityRecordSchema.parse(value)])[0]); })
+      .then(value => { if (!active.signal.aborted) setExtraItem(selection.startsWith("ticket:") ? projectItems([], [TicketRecordSchema.parse(value)])[0] : selection.startsWith("lesson:") ? projectItems([ApiLessonSchema.parse(value)], [])[0] : projectItems([], [], [ActivityRecordSchema.parse(value)])[0]); })
       .catch(failure => { if (!active.signal.aborted) setDetailError(errorMessage(failure)); });
     return () => active.abort();
   }, [data, selection, selected, loading]);

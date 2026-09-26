@@ -10,7 +10,8 @@ export function loadHostedConfig(env: NodeJS.ProcessEnv) {
   let grants: unknown;
   try { grants = JSON.parse(env.TEAM_ACCESS_GRANTS ?? ""); }
   catch { throw new Error("TEAM_ACCESS_GRANTS must be configured as a JSON array."); }
-  const teamAuth = validateTeamAuthConfig({ grants, sessionSecret: env.TEAM_SESSION_SECRET, publicOrigin: env.TEAM_PUBLIC_ORIGIN });
+  const teamAuth = validateTeamAuthConfig({ grants, sessionSecret: env.TEAM_SESSION_SECRET, publicOrigin: env.TEAM_PUBLIC_ORIGIN,
+    guestRead: env.TEAM_GUEST_READ === "true" });
   const settings = loadConfig({ ...env, STORAGE_MODE: "mongodb", TEAM_API_TOKEN: "", HOST: "127.0.0.1" });
   return { settings, teamAuth };
 }
