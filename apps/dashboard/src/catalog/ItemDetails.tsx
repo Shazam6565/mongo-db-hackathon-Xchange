@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityDetails } from "../activity/ActivityDetails.js";
 import { ActivityHistory } from "../activity/ActivityHistory.js";
 import { AddActivity } from "../activity/AddActivity.js";
+import { canWrite, useSession } from "../auth/SessionContext.js";
 import { Evaluation } from "./Evaluation.js";
 import { label, type CatalogItem } from "./model.js";
 
 export function ItemDetails({ item, onClose, onEvaluated }: { item: CatalogItem; onClose: () => void; onEvaluated: () => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const writable = canWrite(useSession());
   const [applying, setApplying] = useState(false), [historyRevision, setHistoryRevision] = useState(0);
   useEffect(() => { setApplying(false); heading.current?.focus(); }, [item.id, item.kind]);
   const source = item.record;
@@ -19,7 +21,7 @@ export function ItemDetails({ item, onClose, onEvaluated }: { item: CatalogItem;
     <section><h2>{item.kind === "lesson" ? "Lesson" : "Description"}</h2><p className="record-prose">{item.description || "No description yet."}</p></section>
     {source.kind === "lesson" ? <>
       <Evaluation key={item.id} lesson={source.value} onEvaluated={onEvaluated} />
-      {source.value.status === "published" && <div className="activity-actions"><button onClick={() => setApplying(true)}>Record application</button></div>}
+      {source.value.status === "published" && writable && <div className="activity-actions"><button onClick={() => setApplying(true)}>Record application</button></div>}
       <ActivityHistory root={{ kind: "lesson", id: item.id }} revision={historyRevision} />
       <section><h2>Evidence</h2>{source.value.evidence.map((evidence, index) => <div className="evidence" key={index}>
         <div><span className="muted">{label(evidence.kind)}</span> <strong>{evidence.reference}</strong></div><p className="record-prose">{evidence.summary}</p>

@@ -2,6 +2,7 @@ import { ActivityRecordSchema, type ActivityRecord } from "../../../../packages/
 import { AddActivity } from "../activity/AddActivity.js";
 import { LessonSchema } from "@team-memory/contracts";
 import { AppFrame } from "../AppFrame.js";
+import { canWrite, useSession } from "../auth/SessionContext.js";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { TicketRecordSchema, type TicketRecord } from "../../../../packages/contracts/src/tickets.js";
 import { AddTicket } from "./AddTicket.js";
@@ -29,6 +30,7 @@ function setFacet(query: URLSearchParams, facet: string, value: string, checked:
 }
 
 export function Catalog() {
+  const writable = canWrite(useSession());
   useEffect(() => {
     function dismiss(event: PointerEvent) {
       const target = event.target;
@@ -134,8 +136,8 @@ export function Catalog() {
           </div>; })}<p className="muted">Saved in this browser for this project.</p>
         </div></details>
         <button onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
-        <button ref={activityButton} onClick={() => setAddingActivity(true)} disabled={!data || loading || Boolean(error)}>+ New record</button>
-        <button ref={addButton} className="primary" onClick={() => setAdding(true)} disabled={!data || loading || Boolean(error)}>+ Add ticket</button>
+        {writable && <><button ref={activityButton} onClick={() => setAddingActivity(true)} disabled={!data || loading || Boolean(error)}>+ New record</button>
+        <button ref={addButton} className="primary" onClick={() => setAdding(true)} disabled={!data || loading || Boolean(error)}>+ Add ticket</button></>}
       </div>
       {filtered && <div className="active-filters" aria-label="Active filters">
         {query.get("q") && <button onClick={() => update(params => { params.delete("q"); params.delete("page"); })}>Search: {query.get("q")} ×</button>}
@@ -155,7 +157,7 @@ export function Catalog() {
                 {col.id === "title" ? <><a id={`item-${itemKey(item)}`} className="item-link" href={itemHref(item)} onClick={event => openItem(event, item)}>{item.title}</a>{item.record.kind === "lesson" && item.record.value.origin === "demo" && <span className="sample-label">Sample</span>}</> : <Cell item={item} column={col.id} />}
               </td>)}</tr>)}</tbody>
             </table>
-            {!loading && !error && matching.length === 0 && <div className="empty-state"><strong>{filtered ? "No matching items" : "Your catalog is empty"}</strong><p>{filtered ? "Try another search or clear the filters." : "Add a ticket or observation to get started. Shared lessons will appear here too."}</p>{filtered ? <button onClick={clearFilters}>Clear filters</button> : <button onClick={() => setAdding(true)}>Add ticket</button>}</div>}
+            {!loading && !error && matching.length === 0 && <div className="empty-state"><strong>{filtered ? "No matching items" : "Your catalog is empty"}</strong><p>{filtered ? "Try another search or clear the filters." : writable ? "Add a ticket or observation to get started. Shared lessons will appear here too." : "Tickets, lessons and activity will appear here once teammates add them."}</p>{filtered ? <button onClick={clearFilters}>Clear filters</button> : writable && <button onClick={() => setAdding(true)}>Add ticket</button>}</div>}
             {loading && !data && <div className="empty-state" role="status">Loading catalog…</div>}
           </div>
           <footer className="table-footer"><span>{error ? "Catalog unavailable" : `${matching.length} ${filtered ? "matching" : "recent"} item${matching.length === 1 ? "" : "s"}`}</span><span className="window-note">Latest 100 tickets, lessons and activity</span><div className="pagination"><button aria-label="Previous page" disabled={page <= 1} onClick={() => update(params => params.set("page", String(page - 1)))}>←</button><span>{page} / {pageCount}</span><button aria-label="Next page" disabled={page >= pageCount} onClick={() => update(params => params.set("page", String(page + 1)))}>→</button></div></footer>

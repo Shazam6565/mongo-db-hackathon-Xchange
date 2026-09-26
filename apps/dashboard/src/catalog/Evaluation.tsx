@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { EvaluationResult, Lesson } from "@team-memory/contracts";
+import { canEvaluate, useSession } from "../auth/SessionContext.js";
 import { errorMessage, request } from "./api.js";
 
 export function Evaluation({ lesson, onEvaluated }: { lesson: Lesson; onEvaluated: () => void }) {
+  const evaluator = canEvaluate(useSession());
   const [evaluation, setEvaluation] = useState<EvaluationResult>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -27,7 +29,8 @@ export function Evaluation({ lesson, onEvaluated }: { lesson: Lesson; onEvaluate
     {evaluation ? <><p>{evaluation.decision} · candidate {evaluation.candidateScore} · baseline {evaluation.baselineScore}</p>
       <p className="muted">{evaluation.suiteVersion} · {evaluation.evaluatorVersion}</p>
       {evaluation.regressions.length > 0 && <ul>{evaluation.regressions.map((item, index) => <li key={index}>{item}</li>)}</ul>}</> : <p className="muted">No evaluation recorded in the recent results.</p>}
-    {lesson.status === "candidate" && <><p className="muted">Run the fixed suite. Passing candidates publish automatically.</p><button onClick={() => void evaluate()} disabled={pending}>{pending ? "Evaluating…" : "Evaluate"}</button></>}
+    {lesson.status === "candidate" && (evaluator ? <><p className="muted">Run the fixed suite. Passing candidates publish automatically.</p><button onClick={() => void evaluate()} disabled={pending}>{pending ? "Evaluating…" : "Evaluate"}</button></>
+      : <p className="muted">Waiting for evaluation. Only an evaluator credential can run the fixed-suite gate.</p>)}
     {error && <p role="alert">{error}</p>}
   </section>;
 }
