@@ -25,6 +25,12 @@ The review is based on these revisions; it is not a blanket approval of future e
    two failed requests. Commit both writes atomically, and give retries a stable
    identity or an explicit reconciliation path.
 
+   *Status, 1e729de:* retries now have a stable identity. With a UUID
+   `Idempotency-Key`, both writes are keyed upserts, so a retry completes a partial
+   proposal and returns the same candidate; different content under the same key
+   is a 409. The two writes are still not one transaction, and a request without a
+   key behaves as before, so clients must send a key.
+
 No additional blocking defect was found in the committed Catalog slice during
 this review. That does not establish remote hosting or live agent-learning readiness.
 

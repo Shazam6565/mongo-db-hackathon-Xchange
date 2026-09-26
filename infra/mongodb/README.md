@@ -2,8 +2,9 @@
 
 The API's MongoDB adapter stores lesson candidates and reads published lessons from `lessons`.
 Configure `MONGODB_URI` and `MONGODB_DATABASE` in the root `.env`. The API creates ordinary
-indexes for the stable lesson ID and scoped/status-filtered listing. MongoDB mode starts empty;
-sample published lessons are exclusive to disposable in-memory mode.
+indexes for the stable lesson ID and scoped/status-filtered listing. MongoDB mode starts empty.
+Load the starting corpus with `npm run seed` (see [data layer](../../docs/data-layer.md)); seeded
+lessons are published only by the gate. The built-in sample lesson exists only in disposable in-memory mode.
 
 Implemented and planned collections:
 
