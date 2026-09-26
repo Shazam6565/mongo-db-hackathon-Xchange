@@ -1,5 +1,6 @@
 import { InMemoryActivityRepository, registerActivity, type ActivityRepository } from "./activity.js";
 import Fastify from "fastify";
+import { z } from "zod";
 import { InMemoryCanvasRepository, registerCanvases, type CanvasRepository } from "./canvases.js";
 import { InMemoryTicketRepository, registerTickets, type TicketRepository } from "./tickets.js";
 import {
@@ -114,8 +115,17 @@ export function buildApp(options: AppOptions) {
       if (!parsed.success) {
         return reply.code(400).send({ error: "Invalid lesson candidate", issues: parsed.error.issues });
       }
-      const lesson = await options.repository.propose(options.scope, teamAuth ? { ...parsed.data, authorId: engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]) } : parsed.data);
-      return reply.code(201).send(lesson);
+      // Optional for older clients. With a key, an identical retry returns the same candidate.
+      const key = request.headers["idempotency-key"];
+      const operation = key === undefined ? undefined : z.string().uuid().safeParse(key);
+      if (operation && !operation.success) return reply.code(400).send({ error: "Idempotency-Key must be a UUID." });
+      try {
+        const input = teamAuth ? { ...parsed.data, authorId: engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]) } : parsed.data;
+        return reply.code(201).send(await options.repository.propose(options.scope, input, operation?.data));
+      } catch (error) {
+        if (sendRepositoryError(error, reply)) return;
+        throw error;
+      }
     });
 
     api.post("/lessons/:id/evaluate", async (request, reply) => {

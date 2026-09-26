@@ -3,6 +3,7 @@ import { MongoClient, type Collection } from "mongodb";
 import type {
   AuditEvent, CandidateInput, EvaluationResult, EvaluationScores, Lesson, LessonVersionRef, Scope,
 } from "@team-memory/contracts";
+import { stableUuid } from "./ids.js";
 
 export class RepositoryError extends Error {
   readonly status: number;
@@ -16,7 +17,9 @@ export class RepositoryError extends Error {
 export interface LessonRepository {
   list(scope: Scope, status?: Lesson["status"]): Promise<Lesson[]>;
   get(scope: Scope, id: string): Promise<Lesson | null>;
-  propose(scope: Scope, input: CandidateInput): Promise<Lesson>;
+  // With an ID (the request's Idempotency-Key), repeating an identical proposal returns the
+  // existing candidate; reusing the ID for different content is a 409.
+  propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson>;
   commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores): Promise<{ lesson: Lesson; evaluation: EvaluationResult }>;
   recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string): Promise<void>;
   listEvaluations(scope: Scope): Promise<EvaluationResult[]>;
@@ -24,13 +27,25 @@ export interface LessonRepository {
   close(): Promise<void>;
 }
 
-function makeCandidate(scope: Scope, input: CandidateInput): Lesson {
+function makeCandidate(scope: Scope, input: CandidateInput, id: string = randomUUID()): Lesson {
   const now = new Date().toISOString();
   return {
-    ...input, ...scope, id: randomUUID(), status: "candidate", version: 1,
+    ...input, ...scope, id, status: "candidate", version: 1,
     origin: "submitted", createdAt: now, updatedAt: now,
   };
 }
+
+const proposalFields = (value: CandidateInput) =>
+  JSON.stringify([value.title, value.lesson, value.authorId, value.appliesTo, value.evidence, value.proposedChange]);
+
+function sameProposal(existing: Lesson, scope: Scope, input: CandidateInput): Lesson {
+  if (existing.teamId !== scope.teamId || existing.projectId !== scope.projectId || proposalFields(existing) !== proposalFields(input)) {
+    throw new RepositoryError("This Idempotency-Key was already used for a different lesson. Submit the new lesson with a new key.", 409);
+  }
+  return existing;
+}
+
+const isDuplicateKey = (error: unknown) => error instanceof Error && "code" in error && error.code === 11000;
 
 function reviewedStatus(decision: EvaluationScores["decision"]): Lesson["status"] | null {
   if (decision === "publish") return "published";
@@ -63,6 +78,15 @@ function auditEvent(
   return {
     id: randomUUID(), ...scope, kind, lessonId, lessonVersion, actorId, at, summary,
     ...(consumed ? { consumed } : {}),
+  };
+}
+
+// Keyed by lesson version, so a retried proposal cannot record a second event.
+function proposalEvent(lesson: Lesson): AuditEvent {
+  const scope = { teamId: lesson.teamId, projectId: lesson.projectId };
+  return {
+    ...auditEvent(scope, "lesson.proposed", lesson.id, lesson.version, lesson.authorId, lesson.createdAt, `Proposed ${lesson.title}`),
+    id: stableUuid("lesson.proposed", lesson.id, String(lesson.version)),
   };
 }
 
@@ -114,10 +138,12 @@ export class InMemoryLessonRepository implements LessonRepository {
     return lesson ? structuredClone(lesson) : null;
   }
 
-  async propose(scope: Scope, input: CandidateInput): Promise<Lesson> {
-    const candidate = makeCandidate(scope, input);
+  async propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
+    const existing = id ? this.lessons.find((item) => item.id === id) : undefined;
+    if (existing) return structuredClone(sameProposal(existing, scope, input));
+    const candidate = makeCandidate(scope, input, id);
     this.lessons.push(candidate);
-    this.audit.push(auditEvent(scope, "lesson.proposed", candidate.id, candidate.version, candidate.authorId, candidate.createdAt, `Proposed ${candidate.title}`));
+    this.audit.push(proposalEvent(candidate));
     return structuredClone(candidate);
   }
 
@@ -199,11 +225,19 @@ export class MongoLessonRepository implements LessonRepository {
     return this.lessons.findOne({ ...scope, id }, { projection: { _id: 0 } });
   }
 
-  async propose(scope: Scope, input: CandidateInput): Promise<Lesson> {
-    const candidate = makeCandidate(scope, input);
-    await this.lessons.insertOne({ ...candidate });
-    await this.audit.insertOne(auditEvent(scope, "lesson.proposed", candidate.id, candidate.version, candidate.authorId, candidate.createdAt, `Proposed ${candidate.title}`));
-    return candidate;
+  async propose(scope: Scope, input: CandidateInput, id?: string): Promise<Lesson> {
+    const candidate = makeCandidate(scope, input, id);
+    // Both writes are keyed upserts: a retry with the same ID completes a partial proposal
+    // instead of creating a second candidate or a second audit event.
+    try { await this.lessons.updateOne({ id: candidate.id }, { $setOnInsert: { ...candidate } }, { upsert: true }); }
+    catch (error) { if (!isDuplicateKey(error)) throw error; }
+    const found = await this.lessons.findOne({ id: candidate.id }, { projection: { _id: 0 } });
+    if (!found) throw new RepositoryError("The proposal could not be confirmed. Retry with the same Idempotency-Key.", 503);
+    const stored = sameProposal(found, scope, input);
+    const event = proposalEvent(stored);
+    try { await this.audit.updateOne({ id: event.id }, { $setOnInsert: { ...event } }, { upsert: true }); }
+    catch (error) { if (!isDuplicateKey(error)) throw error; }
+    return stored;
   }
 
   async commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores) {
