@@ -9,7 +9,7 @@ import {
   type Lesson, type Retrieval, type Scope, type Ticket as TicketRecord,
 } from "../../../packages/contracts/src/index.js";
 import { EVALUATOR_VERSION, compareLesson, loadSuite } from "../../evaluator/src/compare.js";
-import { HarnessRollbackSchema } from "../../../packages/contracts/src/harness.js";
+import { AuditQuerySchema, HarnessRollbackSchema } from "../../../packages/contracts/src/harness.js";
 import { RepositoryError, type LessonRepository, type LessonSearchResult } from "./repository.js";
 import { createTeamAuthentication, type TeamAuthConfig } from "./auth.js";
 
@@ -117,10 +117,17 @@ export function buildApp(options: AppOptions) {
       evaluations: await options.repository.listEvaluations(options.scope),
     }));
 
-    api.get("/audit", async () => ({
-      scope: options.scope,
-      events: await options.repository.listAudit(options.scope),
-    }));
+    // The harness activity feed: newest first, nextCursor for older pages. Filters: kind, actorId,
+    // since, until. Reading it is inspection, never recorded as consumption.
+    api.get("/audit", async (request, reply) => {
+      const query = AuditQuerySchema.safeParse(request.query);
+      if (!query.success) return reply.code(400).send({ error: "Invalid audit filter.", issues: query.error.issues });
+      try { return { scope: options.scope, ...await options.repository.listAudit(options.scope, query.data) }; }
+      catch (error) {
+        if (sendRepositoryError(error, reply)) return;
+        throw error;
+      }
+    });
 
     // Memory is the active harness version's lessons: a rolled-back lesson stops reaching agents.
     // Context injection keeps the ten most recent; skill sync loads the whole version.

@@ -72,6 +72,12 @@ body { margin: 0; }
 .status-candidate { background: #faf1df; color: #886525; }
 .status-rejected { background: #faece9; color: #9c5146; }
 .status-superseded { background: #f0f0ef; color: #747772; }
+/* Harness feed event kinds. */
+.status-memory { background: #efe9f4; color: #66507a; }
+.status-harness { background: #eaf3ed; color: #37614a; }
+.status-rollback { background: #faece9; color: #9c5146; }
+.status-evaluated { background: #eef1f5; color: #4d647f; }
+.harness-versions { border-top: 1px solid var(--line); }
 .sample-label { color: #8d723f; font-size: 10px; border: 1px solid #e5dac1; border-radius: 3px; padding: 1px 4px; margin-left: 8px; display: inline-block; }
 .catalog-app time { font-size: 12px; color: var(--muted); }
 .table-footer { padding: 10px 20px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 11px; }

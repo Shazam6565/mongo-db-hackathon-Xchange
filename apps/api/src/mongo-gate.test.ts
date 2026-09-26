@@ -32,7 +32,7 @@ test("mongo publication writes the lesson, score, and audit in one transaction",
     const publishedLessons = await repository.list(scope, "published");
     assert.deepEqual(publishedLessons.map((lesson) => lesson.id), [narrow.id]);
     await repository.recordConsumption(scope, "engineer-b", [{ id: narrow.id, version: narrow.version }], new Date().toISOString());
-    const audit = await repository.listAudit(scope);
+    const audit = (await repository.listAudit(scope)).events;
     assert.equal(audit.some((event) => event.kind === "lesson.published" && event.lessonId === narrow.id), true);
     assert.equal(audit.some((event) => event.kind === "lesson.rejected" && event.lessonId === broad.id), true);
     assert.deepEqual(

@@ -5,45 +5,19 @@ import { canWrite, useSession } from "../auth/SessionContext.js";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { TicketRecordSchema, type TicketRecord } from "../../../../packages/contracts/src/tickets.js";
 import { AddTicket } from "./AddTicket.js";
+import { ColumnsMenu } from "./ColumnsMenu.js";
 import { ItemDetails } from "./ItemDetails.js";
 import { ApiLessonSchema, errorMessage, loadCatalog, request } from "./api.js";
+import { setFacet, usePopoverDismiss, useQuery } from "./hooks.js";
 import { columns, defaultView, filterItems, itemKey, label, projectItems, readView, statuses, type CatalogItem, type ColumnId, type TableView } from "./model.js";
 import "./catalog.css";
 
 type Data = Awaited<ReturnType<typeof loadCatalog>>;
 const pageSize = 20;
-function useQuery() {
-  const [search, setSearch] = useState(window.location.search);
-  useEffect(() => { const changed = () => setSearch(window.location.search); window.addEventListener("popstate", changed); return () => window.removeEventListener("popstate", changed); }, []);
-  const update = useCallback((change: (params: URLSearchParams) => void, replace = false) => {
-    const params = new URLSearchParams(window.location.search); change(params);
-    const next = `${window.location.pathname}${params.size ? `?${params}` : ""}`;
-    if (replace) window.history.replaceState(null, "", next); else window.history.pushState(null, "", next);
-    setSearch(window.location.search);
-  }, []);
-  return { query: useMemo(() => new URLSearchParams(search), [search]), update };
-}
-function setFacet(query: URLSearchParams, facet: string, value: string, checked: boolean) {
-  const values = new Set(query.getAll(facet)); if (checked) values.add(value); else values.delete(value);
-  query.delete(facet); values.forEach(v => query.append(facet, v)); query.delete("page");
-}
 
 export function Catalog() {
   const writable = canWrite(useSession());
-  useEffect(() => {
-    function dismiss(event: PointerEvent) {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      document.querySelectorAll<HTMLDetailsElement>("details.popover[open]").forEach(menu => { if (!menu.contains(target)) menu.open = false; });
-    }
-    function escape(event: KeyboardEvent) {
-      if (event.key !== "Escape" || !(event.target instanceof Element)) return;
-      const menu = event.target.closest<HTMLDetailsElement>("details.popover[open]");
-      if (menu) { menu.open = false; menu.querySelector<HTMLElement>("summary")?.focus(); event.preventDefault(); }
-    }
-    document.addEventListener("pointerdown", dismiss); document.addEventListener("keydown", escape);
-    return () => { document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", escape); };
-  }, []);
+  usePopoverDismiss();
   const [data, setData] = useState<Data>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -125,15 +99,7 @@ export function Catalog() {
         <details className="popover"><summary>Type{query.getAll("type").length ? ` · ${query.getAll("type").length}` : ""}</summary><div className="popover-panel filter-panel">{["ticket", "lesson", "observation", "decision", "application", "outcome", "correction"].map(kind => <label key={kind}><input type="checkbox" checked={query.getAll("type").includes(kind)} onChange={event => update(params => setFacet(params, "type", kind, event.target.checked))} />{label(kind)}</label>)}</div></details>
         <details className="popover"><summary>Status{query.getAll("status").length ? ` · ${query.getAll("status").length}` : ""}</summary><div className="popover-panel filter-panel">{statuses.map(status => <label key={status}><input type="checkbox" checked={query.getAll("status").includes(status)} onChange={event => update(params => setFacet(params, "status", status, event.target.checked))} />{label(status)}</label>)}</div></details>
         <div className="toolbar-spacer" />
-        <details className="popover columns-popover"><summary>Columns</summary><div className="popover-panel columns-panel">
-          <div className="panel-heading"><strong>Columns</strong><button onClick={() => changeView(defaultView)}>Reset</button></div>
-          <label className="wrap-toggle"><input type="checkbox" checked={view.wrap} onChange={event => changeView({ ...view, wrap: event.target.checked })} />Wrap text</label>
-          {view.order.map((id, index) => { const column = columns.find(c => c.id === id)!; return <div className="column-setting" key={id}>
-            <label><input type="checkbox" checked={!view.hidden.includes(id)} disabled={id === "title"} onChange={event => changeView({ ...view, hidden: event.target.checked ? view.hidden.filter(value => value !== id) : [...view.hidden, id] })} />{column.label}</label>
-            <div className="column-moves">{([-1, 1] as const).map(direction => <button key={direction} className="icon-button" disabled={index + direction < 0 || index + direction >= view.order.length} aria-label={`Move ${column.label} ${direction === -1 ? "left" : "right"}`} onClick={() => { const next = [...view.order]; [next[index], next[index + direction]] = [next[index + direction]!, next[index]!]; changeView({ ...view, order: next }); }}>{direction === -1 ? "←" : "→"}</button>)}</div>
-            <input type="range" aria-label={`${column.label} width`} min={100} max={600} step={10} value={view.widths[id] ?? column.width} onChange={event => changeView({ ...view, widths: { ...view.widths, [id]: Number(event.target.value) } })} />
-          </div>; })}<p className="muted">Saved in this browser for this project.</p>
-        </div></details>
+        <ColumnsMenu columns={columns} view={view} locked="title" onChange={changeView} />
         <button onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button>
         {writable && <><button ref={activityButton} onClick={() => setAddingActivity(true)} disabled={!data || loading || Boolean(error)}>+ New record</button>
         <button ref={addButton} className="primary" onClick={() => setAdding(true)} disabled={!data || loading || Boolean(error)}>+ Add ticket</button></>}

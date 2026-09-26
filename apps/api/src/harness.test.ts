@@ -77,6 +77,40 @@ test("loading the active harness is audited; inspecting it is not", async () => 
   } finally { await app.close(); }
 });
 
+test("the audit feed pages through every harness event and filters by kind and actor", async () => {
+  const app = buildApp({ repository: new InMemoryLessonRepository([seeded]), token: "test-token", scope, storage: "memory" });
+  try {
+    for (const engineer of ["agent-a", "agent-b", "agent-a"]) await app.inject({ url: "/v1/memory", headers: { ...headers, "x-engineer-id": engineer } });
+    const published = await publish(app, "Check event deduplication");
+    await app.inject({ method: "POST", url: "/v1/harness/rollback", headers: { ...headers, "x-engineer-id": "reviewer" }, payload: { expectedVersion: 1, lessonId: published.lesson.id } });
+    // Three reads, then proposed + evaluated + published + harness.updated, then harness.rollback.
+    const all = (await app.inject({ url: "/v1/audit", headers })).json() as { events: AuditEvent[]; nextCursor: string | null };
+    assert.equal(all.nextCursor, null);
+    assert.equal(all.events.length, 8);
+    // Newest first; events in the same millisecond keep a stable order by ID.
+    assert.deepEqual(all.events.map((event) => event.at), [...all.events.map((event) => event.at)].sort().reverse());
+    const paged: AuditEvent[] = [];
+    let cursor: string | null = null, pages = 0;
+    do {
+      const page = (await app.inject({ url: `/v1/audit?limit=3${cursor ? `&cursor=${cursor}` : ""}`, headers })).json() as { events: AuditEvent[]; nextCursor: string | null };
+      paged.push(...page.events); cursor = page.nextCursor; pages++;
+    } while (cursor);
+    assert.equal(pages, 3);
+    assert.deepEqual(paged.map((event) => event.id), all.events.map((event) => event.id));
+
+    const reads = (await app.inject({ url: "/v1/audit?kind=memory.consumed&actorId=agent-a", headers })).json().events as AuditEvent[];
+    assert.equal(reads.length, 2);
+    assert.ok(reads.every((event) => event.kind === "memory.consumed" && event.actorId === "agent-a" && event.consumed?.length === 1));
+    assert.equal((await app.inject({ url: `/v1/audit?since=${encodeURIComponent(new Date(Date.now() + 60_000).toISOString())}`, headers })).json().events.length, 0);
+    assert.equal((await app.inject({ url: `/v1/audit?cursor=${randomUUID()}`, headers })).statusCode, 400);
+    assert.equal((await app.inject({ url: "/v1/audit?limit=0", headers })).statusCode, 400);
+    assert.equal((await app.inject({ url: "/v1/audit?kind=unknown", headers })).statusCode, 400);
+    assert.equal((await app.inject({ url: "/v1/audit?since=2026-09-27T00:00:00Z&until=2026-09-26T00:00:00Z", headers })).statusCode, 400);
+    // Reading the feed is inspection: it adds no event.
+    assert.equal((await app.inject({ url: "/v1/audit", headers })).json().events.length, 8);
+  } finally { await app.close(); }
+});
+
 test("only an evaluator credential can roll back the hosted harness", async () => {
   const grant = (actorId: string, role: "writer" | "evaluator") => ({ actorId, role, tokenHash: hashTeamToken(`synthetic-harness-token-${actorId}-0000000000001`) });
   const teamAuth: TeamAuthConfig = { grants: [grant("writer-1", "writer"), grant("reviewer-1", "evaluator")],
@@ -112,6 +146,18 @@ test("mongo harness versions commit with publication and reject stale rollbacks"
     const stored = await admin.db(database).collection("harness_versions").find({ ...scope }).sort({ number: 1 }).toArray();
     assert.deepEqual(stored.map((version) => `${version.number}:${version.reason}:${version.lessons.length}`), ["1:publish:1", "2:rollback:0"]);
     assert.equal(await admin.db(database).collection("audit_events").countDocuments({ kind: { $in: ["harness.updated", "harness.rollback"] } }), 2);
+
+    // The feed pages by (at, id) through proposed, evaluated, published, harness.updated and harness.rollback.
+    const whole = await repository.listAudit(scope);
+    assert.equal(whole.events.length, 5);
+    const first = await repository.listAudit(scope, { limit: 2 });
+    assert.equal(first.events.length, 2);
+    assert.ok(first.nextCursor);
+    const rest = await repository.listAudit(scope, { limit: 100, cursor: first.nextCursor! });
+    assert.equal(rest.nextCursor, null);
+    assert.deepEqual([...first.events, ...rest.events].map((event) => event.id), whole.events.map((event) => event.id));
+    assert.deepEqual((await repository.listAudit(scope, { limit: 100, kind: "harness.rollback" })).events.map((event) => event.actorId), ["reviewer"]);
+    await assert.rejects(repository.listAudit(scope, { limit: 100, cursor: randomUUID() }), (error: unknown) => error instanceof RepositoryError && error.status === 400);
   } finally {
     await admin.db(database).dropDatabase();
     await admin.close();

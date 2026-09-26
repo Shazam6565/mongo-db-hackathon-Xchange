@@ -84,12 +84,12 @@ test("typed reads stay scoped and distinguish harness inspection from audited me
   assert.deepEqual((catalog.structuredContent!.lessons as { id: string }[]).map(item => item.id), ["shared-lesson"]);
   assert.equal(errorOf(await call(mcp, "xchange_read_lesson", { id: "private-lesson" })).status, 404);
   assert.equal((await call(mcp, "xchange_read_lesson", { id: "shared-lesson" })).structuredContent!.id, "shared-lesson");
-  const before = (await repository.listAudit(scope)).length;
+  const before = (await repository.listAudit(scope)).events.length;
   await call(mcp, "xchange_inspect_harness");
-  assert.equal((await repository.listAudit(scope)).length, before);
+  assert.equal((await repository.listAudit(scope)).events.length, before);
   const memory = await call(mcp, "xchange_load_memory");
   assert.equal((memory.structuredContent!.lessons as unknown[]).length, 1);
-  const consumption = (await repository.listAudit(scope)).filter(event => event.kind === "memory.consumed");
+  const consumption = (await repository.listAudit(scope)).events.filter(event => event.kind === "memory.consumed");
   assert.equal(consumption.length, 1);
   assert.equal(consumption[0]!.actorId, actorId);
   assert.equal(calls.filter(item => item.path === "/v1/access").length, 6);

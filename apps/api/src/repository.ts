@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { MongoClient, type ClientSession, type Collection } from "mongodb";
+import { MongoClient, type ClientSession, type Collection, type Filter } from "mongodb";
 // Relative path: the hosted function cannot load workspace packages at runtime.
 import {
   LessonSchema, lessonSearchText,
   type AuditEvent, type CandidateInput, type EvaluationResult, type EvaluationScores, type Lesson, type LessonVersionRef, type Scope,
 } from "../../../packages/contracts/src/index.js";
-import type { HarnessVersionRecord, LessonRef } from "../../../packages/contracts/src/harness.js";
+import type { AuditQuery, HarnessVersionRecord, LessonRef } from "../../../packages/contracts/src/harness.js";
 import { stableUuid } from "./ids.js";
 
 export class RepositoryError extends Error {
@@ -48,7 +48,8 @@ export interface LessonRepository {
   commitEvaluation(scope: Scope, lessonId: string, expectedVersion: number, scores: EvaluationScores): Promise<EvaluationCommit>;
   recordConsumption(scope: Scope, engineerId: string, lessons: LessonVersionRef[], at: string, harnessVersion?: number): Promise<void>;
   listEvaluations(scope: Scope): Promise<EvaluationResult[]>;
-  listAudit(scope: Scope): Promise<AuditEvent[]>;
+  // The harness activity feed, newest first. nextCursor continues after the last event returned.
+  listAudit(scope: Scope, query?: AuditQuery): Promise<AuditFeedPage>;
   activeHarness(scope: Scope): Promise<ActiveLessons>;
   harnessHistory(scope: Scope): Promise<HarnessVersionRecord[]>;
   // Appends a version without the lesson. expectedVersion must be the active version number.
@@ -57,6 +58,7 @@ export interface LessonRepository {
 }
 
 export interface EvaluationCommit { lesson: Lesson; evaluation: EvaluationResult; harness?: HarnessVersionRecord }
+export interface AuditFeedPage { events: AuditEvent[]; nextCursor: string | null }
 // Version 0 with versionId null means no harness record exists yet: every published lesson is active.
 export interface ActiveLessons { version: number; versionId: string | null; lessons: Lesson[] }
 
@@ -194,6 +196,17 @@ function requireActive(active: LessonRef[], current: number, expectedVersion: nu
 const consumedSummary = (count: number, harnessVersion?: number) =>
   `Fetched ${count} published lesson${count === 1 ? "" : "s"}${harnessVersion === undefined ? "" : ` (harness v${harnessVersion})`}`;
 
+// Feed order: newest first, the ID breaking ties so a cursor resumes exactly where a page ended.
+const byAuditOrder = (a: Pick<AuditEvent, "at" | "id">, b: Pick<AuditEvent, "at" | "id">) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id);
+const DEFAULT_AUDIT_QUERY: AuditQuery = { limit: 100 };
+const matchesAudit = (event: AuditEvent, query: AuditQuery) =>
+  (!query.kind || event.kind === query.kind) && (!query.actorId || event.actorId === query.actorId)
+  && (!query.since || event.at >= query.since) && (!query.until || event.at <= query.until);
+// Fetched limit + 1 so the page knows whether older events remain.
+function auditPage(events: AuditEvent[], limit: number): AuditFeedPage {
+  return { events: events.slice(0, limit), nextCursor: events.length > limit ? events[limit - 1]!.id : null };
+}
+
 function requireCandidate(lesson: Lesson | null, expectedVersion: number): Lesson {
   if (!lesson) throw new RepositoryError("Lesson not found", 404);
   if (lesson.status !== "candidate") throw new RepositoryError("Only a candidate can be evaluated", 409);
@@ -328,11 +341,13 @@ export class InMemoryLessonRepository implements LessonRepository {
       .slice(0, 100));
   }
 
-  async listAudit(scope: Scope): Promise<AuditEvent[]> {
-    return structuredClone(this.audit
-      .filter((item) => item.teamId === scope.teamId && item.projectId === scope.projectId)
-      .sort((a, b) => b.at.localeCompare(a.at))
-      .slice(0, 100));
+  async listAudit(scope: Scope, query: AuditQuery = DEFAULT_AUDIT_QUERY): Promise<AuditFeedPage> {
+    const inScope = this.audit.filter((item) => item.teamId === scope.teamId && item.projectId === scope.projectId);
+    const cursor = query.cursor ? inScope.find((item) => item.id === query.cursor) : undefined;
+    if (query.cursor && !cursor) throw new RepositoryError("Audit cursor not found.", 400);
+    const events = inScope.filter((item) => matchesAudit(item, query) && (!cursor || byAuditOrder(item, cursor) > 0))
+      .sort(byAuditOrder).slice(0, query.limit + 1);
+    return structuredClone(auditPage(events, query.limit));
   }
 
   async close(): Promise<void> {}
@@ -365,6 +380,8 @@ export class MongoLessonRepository implements LessonRepository {
       await evaluations.createIndex({ teamId: 1, projectId: 1, lessonId: 1, createdAt: -1 });
       await audit.createIndex({ id: 1 }, { unique: true });
       await audit.createIndex({ teamId: 1, projectId: 1, at: -1 });
+      // Feed pages sort by time then ID, so a cursor page is an index range scan.
+      await audit.createIndex({ teamId: 1, projectId: 1, at: -1, id: -1 });
       await harness.createIndex({ id: 1 }, { unique: true });
       // Two concurrent changes cannot both become version n + 1.
       await harness.createIndex({ teamId: 1, projectId: 1, number: -1 }, { unique: true });
@@ -607,8 +624,18 @@ export class MongoLessonRepository implements LessonRepository {
     return this.evaluations.find(scope, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(100).toArray();
   }
 
-  async listAudit(scope: Scope): Promise<AuditEvent[]> {
-    return this.audit.find(scope, { projection: { _id: 0 } }).sort({ at: -1 }).limit(100).toArray();
+  async listAudit(scope: Scope, query: AuditQuery = DEFAULT_AUDIT_QUERY): Promise<AuditFeedPage> {
+    const cursor = query.cursor ? await this.audit.findOne({ ...scope, id: query.cursor }, { projection: { _id: 0, at: 1, id: 1 } }) : null;
+    if (query.cursor && !cursor) throw new RepositoryError("Audit cursor not found.", 400);
+    const filter: Filter<AuditEvent> = {
+      ...scope,
+      ...(query.kind ? { kind: query.kind } : {}),
+      ...(query.actorId ? { actorId: query.actorId } : {}),
+      ...(query.since || query.until ? { at: { ...(query.since ? { $gte: query.since } : {}), ...(query.until ? { $lte: query.until } : {}) } } : {}),
+      ...(cursor ? { $or: [{ at: { $lt: cursor.at } }, { at: cursor.at, id: { $lt: cursor.id } }] } : {}),
+    };
+    const events = await this.audit.find(filter, { projection: { _id: 0 } }).sort({ at: -1, id: -1 }).limit(query.limit + 1).toArray();
+    return auditPage(events, query.limit);
   }
 
   async close(): Promise<void> { await this.client.close(); }
