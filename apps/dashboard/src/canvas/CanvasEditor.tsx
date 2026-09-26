@@ -337,8 +337,10 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
             const path = vertical ? `M ${x1} ${y1} C ${x1} ${y1 + bend}, ${x2} ${y2 - bend}, ${x2} ${y2}` : `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
             return <g key={edge.id}><path d={path} fill="none" stroke="#879b90" strokeWidth="1.5" markerEnd="url(#arrow)" /><text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 9} textAnchor="middle">{edge.label}</text></g>;
           })}</svg>
-          {draft.nodes.map(item => { const ref = resolve(item); return <article key={item.id} data-node={item.id} className={`canvas-node color-${item.color} ${selected === item.id ? "is-selected" : ""} ${flagged === item.id ? "is-flagged" : ""} ${item.kind === "record" && !ref ? "is-missing" : ""}`} style={{ left: item.x, top: item.y }} tabIndex={0} aria-label={titleOf(item)} onFocus={() => setSelected(item.id)}>
-            <span className="node-kind">{item.kind === "note" ? "Note" : `${item.ref.kind}${ref?.key ? ` · ${ref.key}` : ""} · ${ref?.status.replaceAll("_", " ") ?? "unavailable"}`}</span><strong>{titleOf(item)}</strong><p>{item.kind === "note" ? item.text || (editable ? "Add a thought…" : "") : ref?.description ?? "This record is not available in this project."}</p>
+          {draft.nodes.map(item => { const ref = resolve(item), title = titleOf(item);
+            // Cards have a fixed size; give the text the lines a one- or two-line title and the record link leave free.
+            const lines = (item.kind === "record" && ref ? 3 : 5) - (title.length > 26 ? 1 : 0); return <article key={item.id} data-node={item.id} className={`canvas-node color-${item.color} ${selected === item.id ? "is-selected" : ""} ${flagged === item.id ? "is-flagged" : ""} ${item.kind === "record" && !ref ? "is-missing" : ""}`} style={{ left: item.x, top: item.y }} tabIndex={0} aria-label={title} onFocus={() => setSelected(item.id)}>
+            <span className="node-kind">{item.kind === "note" ? "Note" : `${item.ref.kind}${ref?.key ? ` · ${ref.key}` : ""} · ${ref?.status.replaceAll("_", " ") ?? "unavailable"}`}</span><strong>{title}</strong><p style={{ WebkitLineClamp: lines }}>{item.kind === "note" ? item.text || (editable ? "Add a thought…" : "") : ref?.description ?? "This record is not available in this project."}</p>
             {item.kind === "record" && ref && <a href={`/?item=${encodeURIComponent(`${item.ref.kind}:${item.ref.id}`)}`} onClick={leaveTo}>Open record ↗</a>}
           </article>; })}
         </div>

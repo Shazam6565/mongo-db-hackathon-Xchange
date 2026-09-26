@@ -25,7 +25,7 @@ export async function request(path: string, init: RequestInit = {}) {
       throw new ApiError("Your session expired. Sign in again.", 401);
     }
     const body = await response.json().catch(() => null);
-    throw new ApiError(body?.error ?? `Request failed (${response.status}). Check the API and try again.`, response.status);
+    throw new ApiError(body?.error ?? (response.status >= 502 ? "The team API is not responding. Check that it is running." : `Request failed (${response.status}). Check the API and try again.`), response.status);
   }
   return response.json();
 }
