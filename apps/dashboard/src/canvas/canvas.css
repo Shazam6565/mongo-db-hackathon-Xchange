@@ -58,6 +58,7 @@ p.canvas-description { padding: 0 4px; }
 .canvas-footer { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .canvas-footer > div { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .canvas-footer button { padding: 2px 9px; }
+.canvas-footer .zoom-level { border-color: transparent; background: transparent; padding: 2px 4px; min-width: 42px; color: inherit; }
 .canvas-footer .text-button { margin-right: 6px; }
 .canvas-app .error-message,.canvas-app .notice { margin: 8px 24px; display: flex; align-items: center; gap: 10px; }
 .canvas-app .error-message .icon-button,.canvas-app .notice .icon-button { margin-left: auto; }

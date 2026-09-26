@@ -17,12 +17,14 @@ type Resolved = { title: string; description: string; status: string; key?: stri
 export type LeaveGuard = MutableRefObject<((go: () => void) => boolean) | null>;
 
 const NODE_W = 240, NODE_H = 160;
+const MIN_ZOOM = .25, MAX_ZOOM = 3, ZOOM_STEP = 1.25;
 const clamp = (v: number) => Math.min(10000, Math.max(-10000, Math.round(v)));
 const colors = ["neutral", "sage", "blue", "amber"] as const;
 export const blankCanvas = (): CanvasInput => ({ title: "Untitled canvas", description: "", nodes: [], edges: [] });
 const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 const list = (items: string[]) => items.length <= 3 ? items.join(", ") : `${items.slice(0, 3).join(", ")} and ${items.length - 3} more`;
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+const modKey = isMac ? "⌘" : "Ctrl", saveKey = isMac ? "⌘S" : "Ctrl+S";
 
 export function CanvasEditor({ id, scope, records, recordsStatus, writable, onClose, onSaved, guard }: {
   id: string; scope: Scope; records?: CatalogItem[]; recordsStatus: string; writable: boolean;
@@ -224,6 +226,30 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
     return () => { window.removeEventListener("keydown", key); window.removeEventListener("keyup", key); window.removeEventListener("blur", blur); };
   });
 
+  // Scrolling pans. Ctrl/⌘ + wheel, or a trackpad pinch (which arrives as Ctrl + wheel), zooms toward the
+  // pointer. A native non-passive listener is needed to stop the browser zooming or scrolling the page.
+  useEffect(() => {
+    const node = stage.current; if (!node) return;
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (gesture.current) return;
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? node.clientHeight : 1;
+      let dx = event.deltaX * unit, dy = event.deltaY * unit;
+      if (event.ctrlKey || event.metaKey) {
+        // Pinch deltas are small and frequent; a mouse wheel notch is about 100. Both become gentle steps.
+        const factor = Math.min(2, Math.max(.5, Math.exp(-dy * (Math.abs(dy) < 50 ? .01 : .002))));
+        const bounds = node.getBoundingClientRect();
+        zoomWith(zoom => zoom * factor, event.clientX - bounds.left, event.clientY - bounds.top);
+        return;
+      }
+      if (event.shiftKey && !dx) { dx = dy; dy = 0; }
+      setViewport(current => ({ ...current, x: current.x - dx, y: current.y - dy }));
+    };
+    const gestureStart = (event: Event) => event.preventDefault();
+    node.addEventListener("wheel", wheel, { passive: false }); node.addEventListener("gesturestart", gestureStart);
+    return () => { node.removeEventListener("wheel", wheel); node.removeEventListener("gesturestart", gestureStart); };
+  }, [phase]);
+
   function add(kind: string) {
     if (!draft || !editable) return;
     const bounds = stage.current?.getBoundingClientRect();
@@ -270,10 +296,24 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
     track(event); gesture.current = null;
     if (stage.current?.hasPointerCapture(event.pointerId)) stage.current.releasePointerCapture(event.pointerId);
   }
-  function zoom(value: number) {
-    const next = Math.max(.25, Math.min(2, value)); const bounds = stage.current?.getBoundingClientRect(); if (!bounds) return;
-    const x = bounds.width / 2, y = bounds.height / 2;
-    setViewport({ zoom: next, x: x - (x - viewport.x) * next / viewport.zoom, y: y - (y - viewport.y) * next / viewport.zoom });
+  // Changes the zoom while the stage point (px, py), by default the centre, stays where it is.
+  // The functional update keeps a burst of wheel events in order.
+  function zoomWith(next: (zoom: number) => number, px?: number, py?: number) {
+    const bounds = stage.current?.getBoundingClientRect(); if (!bounds) return;
+    const ax = px ?? bounds.width / 2, ay = py ?? bounds.height / 2;
+    setViewport(current => {
+      const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next(current.zoom)));
+      return { zoom, x: ax - (ax - current.x) * zoom / current.zoom, y: ay - (ay - current.y) * zoom / current.zoom };
+    });
+  }
+  // Double-click brings a card to the middle of the stage at 100% or more, so it can be read in place.
+  // Pointer capture retargets the click to the stage, so the card is found under the pointer instead.
+  function focusCard(event: MouseEvent<HTMLDivElement>) {
+    const target = (document.elementFromPoint(event.clientX, event.clientY) ?? event.target) as HTMLElement, bounds = stage.current?.getBoundingClientRect();
+    const item = draft?.nodes.find(candidate => candidate.id === target.closest<HTMLElement>("[data-node]")?.dataset.node);
+    if (!item || !bounds || target.closest("a,button")) return;
+    const zoom = Math.max(1, viewport.zoom);
+    setViewport({ zoom, x: bounds.width / 2 - (item.x + NODE_W / 2) * zoom, y: bounds.height / 2 - (item.y + NODE_H / 2) * zoom });
   }
   function fit() {
     const bounds = stage.current?.getBoundingClientRect(), nodes = latest.current.doc?.draft.nodes ?? [];
@@ -311,7 +351,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
             {(["ticket", "lesson"] as const).map(kind => <optgroup key={kind} label={kind === "ticket" ? "Tickets" : "Lessons"}>{recordChoices.filter(choice => choice.key.startsWith(`${kind}:`)).map(choice => <option key={choice.key} value={choice.key} disabled={choice.placed}>{choice.value.key ? `${choice.value.key} · ` : ""}{choice.value.title}{kind === "lesson" ? ` (${choice.value.status})` : ""}{choice.placed ? " — placed" : ""}</option>)}</optgroup>)}
           </select>
           {dirty && <button disabled={busy} onClick={() => setAsk("discard")}>Discard</button>}
-          <button className="primary" disabled={!dirty || busy} onClick={() => void save()} title={`Save (${isMac ? "⌘" : "Ctrl+"}S)`}>{saving ? "Saving…" : "Save"}</button>
+          <button className="primary" disabled={!dirty || busy} onClick={() => void save()} title={`Save (${saveKey})`}>{saving ? "Saving…" : "Save"}</button>
         </>}
       </div>
       {(editable || draft.description) && <div className="canvas-tools">
@@ -326,10 +366,15 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
     {error && <div className="error-message" role="alert">{error}{retry && !busy && editable && dirty && <button onClick={() => void save()}>Save again</button>}<button className="icon-button" aria-label="Dismiss error" onClick={() => setError("")}>×</button></div>}
     {notice && <div className={`notice ${notice.tone === "warn" ? "is-warn" : ""}`} role="status">{notice.text}<button className="icon-button" aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
     <div className={`canvas-workspace ${node ? "with-inspector" : ""}`}>
-      <div ref={stage} className={`canvas-stage ${editable ? "" : "is-view"}`} role="region" aria-label="Canvas drawing area" tabIndex={0} onPointerDown={start} onPointerMove={track} onPointerUp={finish} onPointerCancel={cancelGesture} onLostPointerCapture={() => { if (gesture.current) cancelGesture(); }} onKeyDown={event => {
+      <div ref={stage} className={`canvas-stage ${editable ? "" : "is-view"}`} role="region" aria-label="Canvas drawing area" tabIndex={0} onPointerDown={start} onPointerMove={track} onPointerUp={finish} onPointerCancel={cancelGesture} onLostPointerCapture={() => { if (gesture.current) cancelGesture(); }} onDoubleClick={focusCard} onKeyDown={event => {
         if ((event.target as HTMLElement).closest("a,button,input,textarea,select")) return;
         if (event.code === "Space") { event.preventDefault(); space.current = true; }
         if (event.key === "Escape") { event.preventDefault(); if (gesture.current) cancelGesture(); else setSelected(""); }
+        if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+          if (event.key === "f" || event.key === "F") { event.preventDefault(); fit(); }
+          if (event.key === "=" || event.key === "+") { event.preventDefault(); zoomWith(zoom => zoom * ZOOM_STEP); }
+          if (event.key === "-" || event.key === "_") { event.preventDefault(); zoomWith(zoom => zoom / ZOOM_STEP); }
+        }
         if (node && editable && !busy && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); const n = event.shiftKey ? 40 : 10; patchNode({ x: clamp(node.x + (event.key === "ArrowRight" ? n : event.key === "ArrowLeft" ? -n : 0)), y: clamp(node.y + (event.key === "ArrowDown" ? n : event.key === "ArrowUp" ? -n : 0)) }); }
       }}>
         <div className="canvas-world" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}>
@@ -369,7 +414,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
         <p className="muted">Connections are authored relationships, not proof of causality.</p>
       </aside>}
     </div>
-    <footer className="canvas-footer"><span>{editable ? `Drag to move · Space + drag to pan · Arrows nudge · ${isMac ? "⌘" : "Ctrl+"}S saves` : "Drag to pan · Select a card to read it in full"}</span><div><button className="text-button" onClick={() => void refresh()} disabled={busy} title="Load the latest saved revision. Unsaved changes are combined, not replaced.">{refreshing ? "Refreshing…" : "Refresh"}</button><button className="text-button" onClick={download} title="Download this canvas as a write-canvas JSON file for agents">Download JSON</button><button aria-label="Zoom out" onClick={() => zoom(viewport.zoom - .1)}>−</button><span>{Math.round(viewport.zoom * 100)}%</span><button aria-label="Zoom in" onClick={() => zoom(viewport.zoom + .1)}>+</button><button onClick={fit}>Fit</button></div></footer>
+    <footer className="canvas-footer"><span>{editable ? `Drag to move · Scroll to pan · ${modKey} + scroll or pinch to zoom · Double-click a card to zoom on it · F fits · ${saveKey} saves` : `Drag or scroll to pan · ${modKey} + scroll or pinch to zoom · Double-click a card to zoom on it · F fits · Select a card to read it in full`}</span><div><button className="text-button" onClick={() => void refresh()} disabled={busy} title="Load the latest saved revision. Unsaved changes are combined, not replaced.">{refreshing ? "Refreshing…" : "Refresh"}</button><button className="text-button" onClick={download} title="Download this canvas as a write-canvas JSON file for agents">Download JSON</button><button aria-label="Zoom out" onClick={() => zoomWith(zoom => zoom / ZOOM_STEP)}>−</button><button className="zoom-level" title="Reset to 100%" onClick={() => zoomWith(() => 1)}>{Math.round(viewport.zoom * 100)}%</button><button aria-label="Zoom in" onClick={() => zoomWith(zoom => zoom * ZOOM_STEP)}>+</button><button onClick={fit} title="Fit everything (F)">Fit</button></div></footer>
     {ask === "discard" && <ConfirmDialog title="Discard unsaved changes?" cancelLabel="Keep editing" onCancel={() => setAsk(null)} actions={[{ label: doc.saved ? "Discard changes" : "Discard canvas", tone: "danger", onClick: discard }]}>
       <p>{doc.saved ? `“${doc.saved.canvas.title}” returns to revision ${doc.saved.revision}. The copy kept in this browser is removed too.` : `“${draft.title || "Untitled canvas"}” has never been saved. Discarding removes it from this browser.`}</p>
     </ConfirmDialog>}
