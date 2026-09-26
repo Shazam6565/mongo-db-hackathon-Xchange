@@ -90,21 +90,18 @@ export function Landing() {
 
     <main>
       <section className="landing-hero landing-wrap" aria-labelledby="landing-title">
-        <div className="landing-hero-copy">
-          <p className="landing-context">Team Xchange at the MongoDB NYC hackathon, Recursive Harnessing track. Built on 26 September 2026.</p>
-          <h1 id="landing-title">One engineer’s agent learns a lesson. Every teammate’s agent applies it.</h1>
-          <p className="landing-lede">Team Memory turns what coding agents learn on the job into shared memory that is tested before it is trusted.
-            Lessons are stored in MongoDB Atlas, scored against a fixed suite, published as a versioned harness and loaded by every
-            agent on the team through MCP. Nothing reaches an agent without passing the gate, and anything can be rolled back.</p>
-          <p className="landing-actions"><a className="landing-primary" href="/">Open the live workspace</a><a className="landing-secondary" href="#judge">Judge it in 60 seconds</a></p>
-        </div>
-        <Quiet><LivePanel live={live} /></Quiet>
+        <h1 id="landing-title">Xchange</h1>
+        <p className="landing-tagline">One agent learns it. Every agent applies it.</p>
+        <p className="landing-actions"><a className="landing-primary" href="/">Open the live workspace</a><a className="landing-secondary" href="#judge">Judge it in 60 seconds</a></p>
       </section>
 
       <section className="landing-wrap landing-section" aria-labelledby="landing-problem">
         <h2 id="landing-problem">The problem</h2>
         <div className="landing-problems">{problems.map(([title, text]) => <div key={title}><h3>{title}</h3><p>{text}</p></div>)}</div>
-        <p className="landing-answer">Team Memory is the fix: evidence goes in, tested lessons come out, and every agent runs the same audited version.</p>
+        <p className="landing-answer">Xchange is the fix: evidence goes in, tested lessons come out, and every agent runs the same audited version.</p>
+        <p className="landing-prose">Its Team Memory workspace turns what coding agents learn on the job into shared memory that is tested before it is trusted.
+          Lessons are stored in MongoDB Atlas, scored against a fixed suite, published as a versioned harness and loaded by every
+          agent on the team through MCP. Nothing reaches an agent without passing the gate, and anything can be rolled back.</p>
       </section>
 
       <section className="landing-band" aria-labelledby="landing-loop">
@@ -124,6 +121,7 @@ export function Landing() {
 
       <section className="landing-wrap landing-section" aria-labelledby="landing-proof">
         <h2 id="landing-proof">What we measured</h2>
+        <Quiet><LivePanel live={live} /></Quiet>
         <p className="landing-prose">Every result below is a record in the workspace, with the command or scenario that produced it.</p>
         <div className="landing-table-scroll"><table className="landing-proof">
           <thead><tr><th scope="col">Measurement</th><th scope="col">Result</th><th scope="col">Recorded in</th></tr></thead>
@@ -165,7 +163,7 @@ export function Landing() {
     </main>
 
     <footer className="landing-footer landing-wrap">
-      <span>Team Memory, by Team Xchange</span>
+      <span>Xchange, built for the MongoDB NYC hackathon, Recursive Harnessing track</span>
       <nav aria-label="Links"><a href={repo}>Source</a><a href={`${repo}/blob/main/docs/team-access.md`}>Team access</a><a href={`${repo}/blob/main/docs/mcp-plugin.md`}>MCP plugin</a><a href={`${repo}/blob/main/docs/architecture.md`}>Architecture</a></nav>
     </footer>
   </div>;
@@ -175,7 +173,7 @@ function LivePanel({ live }: { live: Live }) {
   const data = live.state === "ready" ? live.data : undefined;
   const published = data ? data.lessons.filter(lesson => lesson.status === "published").length : 0;
   return <aside className="landing-live" aria-labelledby="landing-live-title">
-    <h2 id="landing-live-title">Live from the Atlas Sandbox</h2>
+    <h3 id="landing-live-title">Live from the Atlas Sandbox</h3>
     {live.state === "error"
       ? <p className="landing-live-note" role="status">Could not read the workspace right now. {live.message} The rest of this page does not depend on it.</p>
       : <dl aria-busy={!data} className={data ? "ready" : ""}>
