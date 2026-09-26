@@ -7,7 +7,7 @@ body { display: flex; flex-direction: column; min-height: 100dvh; }
 #root { flex: 1; min-height: 0; }
 body:has(.canvas-app) { height: 100dvh; }
 body .canvas-app { height: 100%; min-height: 500px; }
-body .storage-label, body .catalog-toolbar > .primary, body .canvas-toolbar > .primary { display: none; }
+body .storage-label, body .catalog-toolbar > .primary, body .canvas-footer > .primary { display: none; }
 @media (max-width: 520px) {
   .preview-banner { padding: 10px 14px; }
   .preview-banner strong, .preview-banner > span { display: block; }

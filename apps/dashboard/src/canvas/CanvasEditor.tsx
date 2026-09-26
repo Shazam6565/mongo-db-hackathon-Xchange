@@ -43,7 +43,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
   const [edgeTo, setEdgeTo] = useState(""), [edgeLabel, setEdgeLabel] = useState("");
   const stage = useRef<HTMLDivElement>(null), gesture = useRef<Gesture | null>(null), space = useRef(false);
   const operation = useRef<{ body: string; key: string } | null>(null);
-  const fitted = useRef(false), closing = useRef(false);
+  const fitted = useRef(false), closing = useRef(false), details = useRef<HTMLDetailsElement>(null);
   const editable = writable && !denied;
   const busy = saving || refreshing;
   const draft = doc?.draft;
@@ -143,7 +143,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
     if (!doc || busy || !editable) return false;
     if (!dirty) { setNotice({ tone: "ok", text: "Nothing new to save." }); return true; }
     const check = problem(doc.draft);
-    if ("message" in check) { setError(check.message); if (check.node) { setFlagged(check.node); setSelected(check.node); } return false; }
+    if ("message" in check) { setError(check.message); if (check.node) { setFlagged(check.node); setSelected(check.node); } else if (details.current) details.current.open = true; return false; }
     return commit(doc, check.valid, false);
   }
   async function commit(current: Doc, canvas: CanvasInput, combined: boolean): Promise<boolean> {
@@ -277,6 +277,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
     if (target.closest("a,button,input,select,textarea")) return;
     const nodeId = !space.current && event.button === 0 ? target.closest<HTMLElement>("[data-node]")?.dataset.node : undefined;
     if (nodeId) setSelected(nodeId); else if (!space.current && event.button === 0) setSelected("");
+    if (details.current) details.current.open = false;
     event.preventDefault(); stage.current?.focus({ preventScroll: true });
     gesture.current = { pointer: event.pointerId, startX: event.clientX, startY: event.clientY, viewport: { ...viewport }, draft: structuredClone(draft), nodeId: editable && !busy ? nodeId : undefined, moved: false };
     stage.current?.setPointerCapture(event.pointerId);
@@ -335,37 +336,12 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
   const recordChoices = [...catalog.entries()].map(([key, value]) => ({ key, value, placed: draft.nodes.some(item => item.kind === "record" && `${item.ref.kind}:${item.ref.id}` === key) }));
   const connected = node ? draft.edges.filter(edge => edge.from === node.id || edge.to === node.id) : [];
   const nodeById = (nodeId: string) => draft.nodes.find(item => item.id === nodeId);
-  // One header row: where you are, what this is, and the few actions that matter. Refresh lives in the footer.
+  // Nothing sits between the app tabs and the canvas: the few controls live in the bottom bar, and
+  // notices float over the stage.
   return <main className="canvas-main">
-    <header className="canvas-header">
-      <div className="canvas-toolbar">
-        <button onClick={() => { if (allowLeave(onClose)) onClose(); }} aria-label="Back to all canvases">← Canvases</button>
-        {editable ? <input className="canvas-title" aria-label="Canvas name" maxLength={80} value={draft.title} disabled={busy} placeholder="Name this canvas" onChange={event => change({ ...draft, title: event.target.value })} /> : <h1 className="canvas-title">{draft.title}</h1>}
-        {guide && <span className="guide-badge">Guide{draft.order ? ` ${draft.order}` : ""}</span>}
-        <span className={`save-state ${!editable ? "is-view" : dirty ? kept ? "is-dirty" : "is-risk" : "is-saved"}`} role="status" title={stateDetail}>{state}</span>
-        <div className="toolbar-spacer" />
-        {editable && <>
-          <button disabled={busy || draft.nodes.length >= 100} onClick={() => add("note")}>+ Note</button>
-          <select aria-label="Place a catalog record" value="" disabled={busy || draft.nodes.length >= 100 || !records} onChange={event => add(event.target.value)}>
-            <option value="">{records ? "+ Record" : recordsStatus}</option>
-            {(["ticket", "lesson"] as const).map(kind => <optgroup key={kind} label={kind === "ticket" ? "Tickets" : "Lessons"}>{recordChoices.filter(choice => choice.key.startsWith(`${kind}:`)).map(choice => <option key={choice.key} value={choice.key} disabled={choice.placed}>{choice.value.key ? `${choice.value.key} · ` : ""}{choice.value.title}{kind === "lesson" ? ` (${choice.value.status})` : ""}{choice.placed ? " — placed" : ""}</option>)}</optgroup>)}
-          </select>
-          {dirty && <button disabled={busy} onClick={() => setAsk("discard")}>Discard</button>}
-          <button className="primary" disabled={!dirty || busy} onClick={() => void save()} title={`Save (${saveKey})`}>{saving ? "Saving…" : "Save"}</button>
-        </>}
-      </div>
-      {(editable || draft.description) && <div className="canvas-tools">
-        {editable ? <textarea className="canvas-description" aria-label="Canvas purpose" rows={1} maxLength={2000} value={draft.description} disabled={busy} placeholder="What this canvas is for and how to read it" onChange={event => change({ ...draft, description: event.target.value })} />
-          : <p className="canvas-description">{draft.description}</p>}
-        {editable && <>
-          <label className="compact-field">Shown as<select value={guide ? "guide" : "board"} disabled={busy} onChange={event => { const { kind: _kind, order, ...rest } = draft; change(event.target.value === "guide" ? { ...rest, kind: "guide", order: order ?? 1 } : rest); }}><option value="board">Board</option><option value="guide">Guide</option></select></label>
-          {guide && <label className="compact-field">Order<input type="number" min={1} max={999} value={draft.order ?? 1} disabled={busy} onChange={event => change({ ...draft, order: Math.min(999, Math.max(1, Math.round(Number(event.target.value) || 1))) })} /></label>}
-        </>}
-      </div>}
-    </header>
-    {error && <div className="error-message" role="alert">{error}{retry && !busy && editable && dirty && <button onClick={() => void save()}>Save again</button>}<button className="icon-button" aria-label="Dismiss error" onClick={() => setError("")}>×</button></div>}
-    {notice && <div className={`notice ${notice.tone === "warn" ? "is-warn" : ""}`} role="status">{notice.text}<button className="icon-button" aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
     <div className={`canvas-workspace ${node ? "with-inspector" : ""}`}>
+      {error && <div className="error-message" role="alert">{error}{retry && !busy && editable && dirty && <button onClick={() => void save()}>Save again</button>}<button className="icon-button" aria-label="Dismiss error" onClick={() => setError("")}>×</button></div>}
+      {notice && <div className={`notice ${notice.tone === "warn" ? "is-warn" : ""}`} role="status">{notice.text}<button className="icon-button" aria-label="Dismiss notice" onClick={() => setNotice(undefined)}>×</button></div>}
       <div ref={stage} className={`canvas-stage ${editable ? "" : "is-view"}`} role="region" aria-label="Canvas drawing area" tabIndex={0} onPointerDown={start} onPointerMove={track} onPointerUp={finish} onPointerCancel={cancelGesture} onLostPointerCapture={() => { if (gesture.current) cancelGesture(); }} onDoubleClick={focusCard} onKeyDown={event => {
         if ((event.target as HTMLElement).closest("a,button,input,textarea,select")) return;
         if (event.code === "Space") { event.preventDefault(); space.current = true; }
@@ -414,7 +390,34 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
         <p className="muted">Connections are authored relationships, not proof of causality.</p>
       </aside>}
     </div>
-    <footer className="canvas-footer"><span>{editable ? `Drag to move · Scroll to pan · ${modKey} + scroll or pinch to zoom · Double-click a card to zoom on it · F fits · ${saveKey} saves` : `Drag or scroll to pan · ${modKey} + scroll or pinch to zoom · Double-click a card to zoom on it · F fits · Select a card to read it in full`}</span><div><button className="text-button" onClick={() => void refresh()} disabled={busy} title="Load the latest saved revision. Unsaved changes are combined, not replaced.">{refreshing ? "Refreshing…" : "Refresh"}</button><button className="text-button" onClick={download} title="Download this canvas as a write-canvas JSON file for agents">Download JSON</button><button aria-label="Zoom out" onClick={() => zoomWith(zoom => zoom / ZOOM_STEP)}>−</button><button className="zoom-level" title="Reset to 100%" onClick={() => zoomWith(() => 1)}>{Math.round(viewport.zoom * 100)}%</button><button aria-label="Zoom in" onClick={() => zoomWith(zoom => zoom * ZOOM_STEP)}>+</button><button onClick={fit} title="Fit everything (F)">Fit</button></div></footer>
+    <footer className="canvas-footer">
+      <button onClick={() => { if (allowLeave(onClose)) onClose(); }} aria-label="Back to all canvases">← Canvases</button>
+      <details ref={details} className="popover canvas-details"><summary title={editable ? "Name, purpose and settings" : "About this canvas"}>{draft.title || "Untitled canvas"}{guide && <span className="guide-badge">Guide{draft.order ? ` ${draft.order}` : ""}</span>}</summary>
+        <div className="popover-panel canvas-panel">
+          {editable ? <fieldset disabled={busy}>
+            <label>Name<input maxLength={80} value={draft.title} placeholder="Required" aria-invalid={!draft.title.trim()} onChange={event => change({ ...draft, title: event.target.value })} /></label>
+            <label>Purpose<textarea rows={3} maxLength={2000} value={draft.description} placeholder="What this canvas is for and how to read it" onChange={event => change({ ...draft, description: event.target.value })} /></label>
+            <div className="form-row"><label>Shown as<select value={guide ? "guide" : "board"} onChange={event => { const { kind: _kind, order, ...rest } = draft; change(event.target.value === "guide" ? { ...rest, kind: "guide", order: order ?? 1 } : rest); }}><option value="board">Board</option><option value="guide">Guide</option></select></label>
+              {guide && <label>Order<input type="number" min={1} max={999} value={draft.order ?? 1} onChange={event => change({ ...draft, order: Math.min(999, Math.max(1, Math.round(Number(event.target.value) || 1))) })} /></label>}</div>
+          </fieldset> : <p className="record-prose">{draft.description || "No description."}</p>}
+          {doc.saved && <p className="muted">Revision {doc.saved.revision} · {doc.saved.editorLabel} · {clock(doc.saved.updatedAt)}</p>}
+          <div className="panel-actions"><button className="text-button" onClick={() => void refresh()} disabled={busy} title="Load the latest saved revision. Unsaved changes are combined, not replaced.">{refreshing ? "Refreshing…" : "Refresh"}</button><button className="text-button" onClick={download} title="Download this canvas as a write-canvas JSON file for agents">Download JSON</button></div>
+        </div></details>
+      <span className={`save-state ${!editable ? "is-view" : dirty ? kept ? "is-dirty" : "is-risk" : "is-saved"}`} role="status" title={stateDetail}>{state}</span>
+      <div className="toolbar-spacer" />
+      {editable && <>
+        <button disabled={busy || draft.nodes.length >= 100} onClick={() => add("note")}>+ Note</button>
+        <select aria-label="Place a catalog record" value="" disabled={busy || draft.nodes.length >= 100 || !records} onChange={event => add(event.target.value)}>
+          <option value="">{records ? "+ Record" : recordsStatus}</option>
+          {(["ticket", "lesson"] as const).map(kind => <optgroup key={kind} label={kind === "ticket" ? "Tickets" : "Lessons"}>{recordChoices.filter(choice => choice.key.startsWith(`${kind}:`)).map(choice => <option key={choice.key} value={choice.key} disabled={choice.placed}>{choice.value.key ? `${choice.value.key} · ` : ""}{choice.value.title}{kind === "lesson" ? ` (${choice.value.status})` : ""}{choice.placed ? " — placed" : ""}</option>)}</optgroup>)}
+        </select>
+        {dirty && <button disabled={busy} onClick={() => setAsk("discard")}>Discard</button>}
+        <button className="primary" disabled={!dirty || busy} onClick={() => void save()} title={`Save (${saveKey})`}>{saving ? "Saving…" : "Save"}</button>
+        <span className="footer-divider" aria-hidden="true" />
+      </>}
+      <button aria-label="Zoom out" onClick={() => zoomWith(zoom => zoom / ZOOM_STEP)}>−</button><button className="zoom-level" title="Reset to 100%" onClick={() => zoomWith(() => 1)}>{Math.round(viewport.zoom * 100)}%</button><button aria-label="Zoom in" onClick={() => zoomWith(zoom => zoom * ZOOM_STEP)}>+</button>
+      <button onClick={fit} title={`Fit everything (F) · Scroll to pan · ${modKey} + scroll or pinch to zoom · Double-click a card to zoom on it${editable ? ` · ${saveKey} saves` : ""}`}>Fit</button>
+    </footer>
     {ask === "discard" && <ConfirmDialog title="Discard unsaved changes?" cancelLabel="Keep editing" onCancel={() => setAsk(null)} actions={[{ label: doc.saved ? "Discard changes" : "Discard canvas", tone: "danger", onClick: discard }]}>
       <p>{doc.saved ? `“${doc.saved.canvas.title}” returns to revision ${doc.saved.revision}. The copy kept in this browser is removed too.` : `“${draft.title || "Untitled canvas"}” has never been saved. Discarding removes it from this browser.`}</p>
     </ConfirmDialog>}
