@@ -83,7 +83,7 @@ function CanvasGallery({ canvases, drafts, loading, error, writable, onOpen, onC
     {!canvases && !error && <div className="empty-state" role="status">{loading ? "Loading canvases…" : "No canvases loaded."}</div>}
     {unsaved.length > 0 && <Section id="drafts" title="Not saved yet" count={unsaved.length} intro="New canvases kept only in this browser. Open one and save it to share it.">
       <ul className="canvas-cards">{unsaved.map(draft => <li key={draft.id} className="canvas-card is-draft">
-        <a href={canvasHref(draft.id)} onClick={event => onOpen(event, draft.id)}><strong>{draft.draft.title || "Untitled canvas"}</strong><span className="card-text">{draft.draft.description || "No description yet."}</span><Counts canvas={draft.draft} /><span className="card-meta">Kept in this browser · {when(draft.keptAt)}</span></a>
+        <a href={canvasHref(draft.id)} onClick={event => onOpen(event, draft.id)} title={`Kept in this browser · ${when(draft.keptAt)}`}><strong>{draft.draft.title || "Untitled canvas"}</strong><span className="card-counts"><Counts canvas={draft.draft} /></span></a>
         <button className="text-button" onClick={() => onDropDraft(draft.id)} aria-label={`Discard unsaved canvas ${draft.draft.title}`}>Discard</button>
       </li>)}</ul></Section>}
     {guides.length > 0 && <Section id="guides" title="Start here" count={guides.length} intro="Guides for people and agents joining this workspace. Read them in order.">
@@ -110,16 +110,17 @@ function Section({ id, title, count, intro, children }: { id: string; title: str
     {children}
   </details>;
 }
+// A card is just the name and what is on the canvas; the rest waits in the tooltip and the editor.
 function Card({ record, edited, onOpen }: { record: CanvasRecord; edited: boolean; onOpen: (event: MouseEvent<HTMLAnchorElement>, id: string) => void }) {
   const canvas = record.canvas;
-  return <li className="canvas-card"><a href={canvasHref(record.id)} onClick={event => onOpen(event, record.id)}>
-    <span className="card-top">{canvas.kind === "guide" && <span className="guide-badge">Guide{canvas.order ? ` ${canvas.order}` : ""}</span>}{edited && <span className="draft-badge">Unsaved changes</span>}</span>
-    <strong>{canvas.title}</strong><span className="card-text">{canvas.description || "No description."}</span><Counts canvas={canvas} />
-    <span className="card-meta">Rev {record.revision} · {record.editorLabel} · {when(record.updatedAt)}</span>
+  const detail = [canvas.description, `Revision ${record.revision} · ${record.editorLabel} · ${when(record.updatedAt)}`].filter(Boolean).join("\n");
+  return <li className="canvas-card"><a href={canvasHref(record.id)} onClick={event => onOpen(event, record.id)} title={detail}>
+    <strong>{canvas.title}</strong>
+    <span className="card-counts"><Counts canvas={canvas} />{edited && <span className="draft-badge">Unsaved changes</span>}</span>
   </a></li>;
 }
 function Counts({ canvas }: { canvas: CanvasRecord["canvas"] }) {
   const notes = canvas.nodes.filter(node => node.kind === "note").length, placed = canvas.nodes.length - notes;
   const part = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
-  return <span className="card-counts">{[part(notes, "note"), ...(placed ? [part(placed, "record")] : []), part(canvas.edges.length, "connection")].join(" · ")}</span>;
+  return <>{[part(notes, "note"), ...(placed ? [part(placed, "record")] : []), part(canvas.edges.length, "connection")].join(" · ")}</>;
 }
