@@ -43,6 +43,10 @@ test("Vercel transport preserves routing, filters, cookies and API errors", asyn
     const response = await fetch(request("/api/index?route=v1/activity&kind=decision&limit=1", "bob"));
     assert.deepEqual((await response.json()).records, []);
     assert.equal(response.headers.get("cache-control"), "no-store");
+    // Vercel appends the rewrite source's named segment to the query as `path`.
+    const rewritten = await fetch(request("/api/index?route=v1/activity&limit=100&path=v1/activity", "bob"));
+    assert.equal(rewritten.status, 200);
+    assert.equal((await rewritten.json()).records.length, 1);
     const read = await fetch(request(`/v1/activity/${saved.id}`, "bob"));
     assert.equal((await read.json()).id, saved.id);
     const largeCanvas = { expectedRevision: 0, canvas: { title: "Large valid canvas", description: "", nodes: Array.from({ length: 40 }, (_, i) => ({ kind: "note", id: `note-${i}`, title: "Note", text: "x".repeat(2000), x: i, y: 0, color: "neutral" })), edges: [] } };
