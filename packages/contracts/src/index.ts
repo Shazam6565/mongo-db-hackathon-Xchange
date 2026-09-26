@@ -49,6 +49,36 @@ export type CandidateInput = z.infer<typeof CandidateInputSchema>;
 export type Lesson = z.infer<typeof LessonSchema>;
 export type MemorySnapshot = z.infer<typeof MemorySnapshotSchema>;
 
+// Planned ticket/log contracts for frontend/, the API, and Pi. Routes/storage are not implemented.
+export interface Ticket extends Scope {
+  key: string;
+  summary: string;
+  description: string;
+  component: string | null;
+  acceptanceCriteria: string[];
+  updatedAt: string;
+}
+
+export interface AgentChangeInput {
+  eventId: string; // Stable across retries, for scoped idempotency.
+  ticketKey: string;
+  agentId: string;
+  sessionId: string;
+  kind: "observation" | "triage-proposal" | "verification-result" | "lesson-candidate" | "memory-applied";
+  summary: string;
+  observedAt: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  evidence: z.infer<typeof EvidenceSchema>[];
+  lessonId?: string;
+}
+
+export interface AgentChange extends AgentChangeInput, Scope {
+  id: string;
+  engineerId: string; // Assigned by the service from authenticated identity.
+  recordedAt: string;
+}
+
 // Planned storage contracts. No promotion endpoint exists in this starter.
 export interface EvaluationResult {
   id: string;

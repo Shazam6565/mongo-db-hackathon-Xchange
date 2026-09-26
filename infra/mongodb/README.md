@@ -9,13 +9,28 @@ Planned collections:
 
 | Collection | Contents |
 | --- | --- |
+| `tickets` | Native ticket state for the team's frontend and agents |
+| `agent_changes` | Ticket-linked observations, proposals, verification results, and lesson references from agents |
 | `lessons` | Lesson text, scope, applicability, evidence references, status, version, embedding |
 | `evaluations` | Fixed-suite baseline/candidate scores, regression results, evaluator identity |
 | `harness_versions` | Versioned instructions, registered-tool presets, verification steps |
 | `audit_events` | Proposal, evaluation, promotion, rollback, and consumption events |
 
-Only `lessons` is implemented. The contract types for evaluations and harness versions are
-design placeholders, not proof of implemented persistence or rollout.
+Only `lessons` is implemented. Ticket/change-log repositories, evaluations, and harness versions
+are design contracts, not implemented persistence or rollout.
+
+## Ticket and agent logs — planned
+
+Pi submits detected changes to the API. The API derives the engineer and team/project from
+authentication, validates the ticket reference, and appends an `agent_changes` document. The
+upcoming root `frontend/` reads tickets and their history through the API. It never connects
+directly to MongoDB. See [frontend integration](../../docs/frontend-integration.md).
+
+Index `agent_changes` by `(teamId, projectId, eventId)` uniquely for retry deduplication and by
+`(teamId, projectId, ticketKey, recordedAt)` for timeline reads. Index `tickets` by
+`(teamId, projectId, key)` uniquely. These indexes are not created by the current adapter.
+Distinguish agent-observed/proposed changes from applied ticket changes, and keep these records
+separate from service-generated `audit_events` used for publication and rollback.
 
 ## Vector Search — planned
 

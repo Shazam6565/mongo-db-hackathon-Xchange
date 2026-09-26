@@ -2,7 +2,8 @@
 
 Target: independent engineering agents share useful, tested lessons while retaining separate
 task histories and working copies. MongoDB owns shared records; Pi extensions adapt each local
-agent's context. Jira provides the first ticket workflow.
+agent's context. The team's own ticket and agent-log frontend will be added later at root `frontend/`.
+Agent-detected changes are sent through the API to MongoDB and surfaced in that dashboard.
 
 ## System sketch
 
@@ -20,15 +21,18 @@ flowchart TB
   end
   PA <-->|Candidate submission / published snapshot| API[Shared memory API — TypeScript]
   PB <-->|Candidate submission / published snapshot| API
-  UI[Lesson + evidence dashboard] --> API
+  UI[Temporary lesson + evidence viewer] --> API
+  FE["frontend/ — tickets + agent logs, to be added"] -.->|Read tickets and history / submit edits| API
+  PA -.->|Detected changes and outcomes — planned| API
+  PB -.->|Detected changes and outcomes — planned| API
   API <--> DB[(MongoDB Atlas: lessons)]
+  API -.->|Ticket state / append change events — planned| LOGS[(MongoDB: tickets + agent_changes)]
   API -.->|Candidate queue — planned| EVAL[Isolated evaluator: baseline vs candidate]
   EVAL -.->|Scores and regressions| GATE[Version-checked publication gate]
   GATE -.->|Evaluations + harness versions + audit| DB
   DB -.->|Change Stream — planned| EVENTS[Scoped SSE notifications]
   EVENTS -.->|Invalidate, refetch at next safe boundary| PA
   EVENTS -.->|Invalidate, refetch at next safe boundary| PB
-  JIRA[Jira adapter — planned] -.-> API
 ```
 
 Solid connections are scaffold paths. Dashed connections are planned. The MongoDB adapter is
@@ -43,6 +47,11 @@ sequenceDiagram
   participant E as Evaluator (planned)
   participant DB as MongoDB
   participant B as Engineer B + Pi
+  participant UI as Ticket/log frontend (to be added)
+  A->>API: Report ticket-linked observation or proposed change (planned)
+  API->>DB: Append agent_changes event (planned)
+  UI->>API: Request ticket and change timeline (planned)
+  API-->>UI: Current ticket state + recorded observations (planned)
   A->>API: Propose lesson + evidence + workflow change
   API->>DB: Store as candidate
   API->>E: Compare baseline and candidate on fixed held-out cases
@@ -63,12 +72,25 @@ sequenceDiagram
 
 | Boundary | Responsibility |
 | --- | --- |
-| Pi extension | Fetch current memory, generate local cache, propose lessons; later extract evidence and apply evaluated configuration |
-| API | Enforce scope, validate requests, persist candidates; later authenticate users and coordinate publication |
+| Pi extension | Fetch memory and propose lessons; later report ticket-linked changes, extract evidence, and apply evaluated configuration |
+| API | Enforce scope and persist candidates; later serve native tickets, append change logs, and coordinate publication |
 | Evaluator | Execute fixed baseline/candidate trials in isolation; compute hard metrics; cannot be edited by the candidate |
-| MongoDB | Durable shared knowledge, evidence metadata, versions, later vectors and publication history |
-| Dashboard | Explain which lesson exists, where it came from, how it was tested, and who consumed it |
-| Jira adapter | Convert tickets to the common schema and submit visible triage proposals |
+| MongoDB | Durable lessons now; planned ticket records, agent change logs, vectors, evaluations, and version history |
+| `frontend/` (to be added) | Own ticket views, agent change timelines, engineer feedback, and shared-learning visibility |
+| `apps/dashboard` | Temporary lesson/evidence viewer while the team's UI is being integrated |
+
+Ticket and agent-log types are shared in `packages/contracts`; API repository contracts are in
+`apps/api/src/integrations/tickets.ts` and `agent-changes.ts`. See
+[frontend integration](frontend-integration.md) for proposed routes and an event example.
+
+## Ticket and log flow — planned
+
+The incoming frontend and Pi use the same scoped API. MongoDB holds current tickets in `tickets`
+and a history of detected changes in `agent_changes`. Each event links to its ticket, agent/session,
+engineer, timestamp, and evidence. The frontend reads that history from the API. Changes reported
+by agents are observations or proposals until an action and its outcome are recorded; they do not
+automatically mutate tickets or become published lessons. Useful patterns enter the existing
+candidate/evaluation/publication loop. Raw log ingestion and its database storage are not yet built.
 
 The model continues to run through Pi and its configured provider. Sharing changes retrieved
 context and eventually harness configuration, not model weights. The implementation currently
@@ -107,6 +129,7 @@ tool authorization. Treat evidence references as claims until the evaluator veri
 
 ## First implementation milestone
 
-Two independently identified Pi sessions, one repo, one candidate learned from ticket A, fixed
-positive/negative evaluation cases, one published version, and an improved result on ticket B.
-The candidate-to-published transition is the central missing piece of the skeleton.
+Two independently identified Pi sessions, tickets and change timelines in the team's frontend,
+one candidate learned from ticket A, fixed positive/negative evaluation cases, one published version,
+and an improved result on ticket B. Ticket/log ingestion and candidate-to-published promotion are
+the central missing pieces of the skeleton.

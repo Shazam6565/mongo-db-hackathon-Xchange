@@ -27,8 +27,8 @@ function App() {
     <header><span className="wordmark">TEAM MEMORY <span>/ LAB</span></span><span className="tag">Hackathon starter</span></header>
     <section className="intro">
       <div><p className="eyebrow">SHARED LEARNING FOR ENGINEERING AGENTS</p><h1>One agent learns.<br />The team moves forward.</h1>
-        <p className="lede">A workspace for lessons, supporting evidence, and the changes they could make to your agents.</p></div>
-      <aside><span className="status-dot" /> {storage === "memory" ? "Local demo storage" : storage === "mongodb" ? "MongoDB storage" : "Connecting to API"}<p>Evaluation, automatic publishing, and live sync are planned. Sample lessons are explicitly labeled.</p></aside>
+        <p className="lede">A temporary viewer for shared lessons and evidence. The team's ticket and agent-log dashboard will be added in frontend/.</p></div>
+      <aside><span className="status-dot" /> {storage === "memory" ? "Local demo storage" : storage === "mongodb" ? "MongoDB storage" : "Connecting to API"}<p>Ticket and agent-log integration is planned alongside evaluation, publishing, and live sync. Sample lessons are explicitly labeled.</p></aside>
     </section>
     <section className="pipeline" aria-label="Proposed learning pipeline">
       {[["01", "Capture a lesson"], ["02", "Test the change"], ["03", "Publish a version"], ["04", "Share with the team"]].map(([number, label]) =>

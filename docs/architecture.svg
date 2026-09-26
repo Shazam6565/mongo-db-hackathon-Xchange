@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="960" viewBox="0 0 1200 960" role="img" aria-labelledby="title desc">
   <title id="title">Team Memory Harness architecture sketch</title>
-  <desc id="desc">Two independent engineers use Pi extensions connected to a shared memory API and MongoDB. Evaluation, publishing, Jira, and live push are planned.</desc>
+  <desc id="desc">Two independent engineers use Pi extensions connected to a shared API and MongoDB. A frontend directory will later provide tickets and agent change logs. Evaluation, publishing, log ingestion, and live push are planned.</desc>
   <defs>
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8" fill="none" stroke="#567164" stroke-width="1.3"/></marker>
     <style>
@@ -18,7 +18,7 @@
   <rect width="1200" height="960" fill="#f4f6ef"/>
   <text x="56" y="48" class="label">TEAM MEMORY / ARCHITECTURE SKETCH</text>
   <text x="56" y="91" font-size="31" font-weight="600" letter-spacing="-1">Independent work. Shared engineering lessons.</text>
-  <text x="56" y="119" class="body">Pi owns each agent loop. MongoDB owns the shared knowledge and its history.</text>
+  <text x="56" y="119" class="body">Pi reports changes. MongoDB stores tickets, logs, and shared lessons. The team's frontend displays the history.</text>
 
   <rect class="box" x="56" y="160" width="435" height="150"/>
   <text x="79" y="190" class="label">ENGINEER A / LOCAL WORKSPACE</text>
@@ -34,26 +34,28 @@
 
   <path class="link" d="M310 310 V345 H480 V395" marker-start="url(#arrow)"/>
   <path class="link" d="M890 310 V345 H720 V395" marker-start="url(#arrow)"/>
-  <text x="63" y="341" class="small">propose / retrieve</text>
-  <text x="939" y="341" class="small">propose / retrieve</text>
+  <text x="63" y="333" class="small">propose / retrieve</text>
+  <text x="63" y="351" class="small">change reporting planned</text>
+  <text x="939" y="333" class="small">propose / retrieve</text>
+  <text x="939" y="351" class="small">change reporting planned</text>
 
   <rect x="398" y="395" width="404" height="166" rx="14" fill="#173f31"/>
   <text x="423" y="428" style="fill:#a6c5a5" class="label">SHARED SERVICE</text>
-  <text x="423" y="464" style="fill:#f1f6e9" class="heading">Memory API · Node / TypeScript</text>
+  <text x="423" y="464" style="fill:#f1f6e9" class="heading">Shared API · Node / TypeScript</text>
   <text x="423" y="493" style="fill:#bad0bb" class="body">Scope → validate → store → retrieve</text>
   <text x="423" y="525" style="fill:#bad0bb" class="small">Local token now · per-user remote auth planned</text>
 
   <rect class="box" x="56" y="420" width="240" height="118"/>
-  <text x="76" y="451" class="label">VISIBILITY</text>
-  <text x="76" y="480" class="heading">React dashboard</text>
+  <text x="76" y="451" class="label">TEMPORARY DEMO</text>
+  <text x="76" y="480" class="heading">Lesson viewer</text>
   <text x="76" y="507" class="small">Lessons · evidence · status</text>
   <path class="link" d="M296 478 H398"/>
 
   <rect class="planned" x="905" y="420" width="239" height="118"/>
-  <text x="925" y="451" class="label">PLANNED ADAPTER</text>
-  <text x="925" y="480" class="heading">Jira tickets</text>
-  <text x="925" y="507" class="small">Read / propose triage changes</text>
-  <path class="future" d="M905 478 H802"/>
+  <text x="925" y="451" class="label">TO BE ADDED</text>
+  <text x="925" y="480" class="heading">frontend/</text>
+  <text x="925" y="507" class="small">Team's ticket + agent-log dashboard</text>
+  <path class="future" d="M905 478 H802" marker-start="url(#arrow)"/>
 
   <path class="link" d="M500 561 V606 H304 V654" marker-start="url(#arrow)"/>
   <path class="future" d="M700 561 V606 H918 V654" marker-start="url(#arrow)"/>
@@ -63,8 +65,8 @@
   <rect class="box" x="56" y="654" width="500" height="153"/>
   <text x="80" y="685" class="label">AUTHORITATIVE SHARED STORE</text>
   <text x="80" y="718" class="heading">MongoDB Atlas</text>
-  <text x="80" y="745" class="body">Lessons repository implemented · in-memory demo default</text>
-  <text x="80" y="772" class="small">Planned: vectors, evaluations, harness versions, audit events</text>
+  <text x="80" y="745" class="body">Lessons implemented · tickets and agent_changes planned</text>
+  <text x="80" y="772" class="small">Also planned: vectors, evaluations, versions, and audit events</text>
 
   <rect class="planned" x="709" y="654" width="435" height="153"/>
   <text x="732" y="685" class="label">PLANNED WORKER + PUBLICATION GATE</text>
