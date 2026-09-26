@@ -44,7 +44,7 @@ node scripts/client.mjs harness                # active version and history, wit
 
 1. Read the existing canvas and its revision, plus `catalog` for scoped ticket/lesson IDs. For a new canvas, generate a UUID and start at `expectedRevision: 0`.
 2. Read `schema`; write a JSON file containing `expectedRevision` and `canvas`. Preserve existing IDs, descriptions, notes and placements unless the request calls for changing them. Record references contain IDs, not copied descriptions. Never rewrite human-owned record descriptions.
-3. Use notes for agent explanations and labeled edges for proposed relationships. Distinguish an observed derivation from a hypothesis. A line does not prove causality, publish a lesson, authorize execution or move the source record.
+3. Use notes for agent explanations and labeled edges for proposed relationships. Distinguish an observed derivation from a hypothesis. A line does not prove causality, publish a lesson, authorize execution or move the source record. Follow the house rules in `docs/shared-canvas.md` (Writing canvases): a title plus a description saying who the canvas is for; cards on a 320 × 240 grid read left to right, then down; `blue` for people, tickets and inputs, `amber` for agents and their evidence, `neutral` for the system and its rules, `sage` for verified or published results; one-line titles and notes under 150 characters; a verb or audience on every edge. Keep `kind` and `order` unchanged unless asked: `kind: "guide"` marks a curated guide listed under Start here.
 4. Generate a UUID operation ID, then save:
 
 ```sh
