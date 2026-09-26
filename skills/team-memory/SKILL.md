@@ -5,7 +5,7 @@ description: Read active project lessons, propose evidence-backed candidates, an
 
 # Shared project memory
 
-Use the shared API. The server owns MongoDB credentials and the project scope. Never request a database password, access another project's records, or put credentials in a canvas. Requires Node 22+ and server-provided `TEAM_API_URL`, `TEAM_API_TOKEN` and an optional self-reported `ENGINEER_ID`. HTTP is allowed only on loopback. No provider credentials are needed in the client.
+Use the shared API. The server owns MongoDB credentials and the project scope. Never request a database password, access another project's records, or put credentials in a canvas. Requires Node 22+ and server-provided `TEAM_API_URL`, `TEAM_API_TOKEN` and an optional self-reported `ENGINEER_ID`. HTTP is allowed only on loopback. No provider credentials are needed in the client. Settings missing from the environment are read from `~/.team-memory/credential.env` (or `TEAM_MEMORY_ENV`), and `TEAM_API_URL` defaults to the hosted workspace, `https://mongo-db-hackathon-xchange.vercel.app`.
 
 Each hosted agent installation uses its own token, separate from its human owner's
 browser token. At initial connection or after credential changes, run `access` and

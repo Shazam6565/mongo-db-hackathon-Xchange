@@ -13,6 +13,8 @@ const CUSTOM_TYPE = "team-memory-snapshot";
 // Session entry recording the ticket this session works on. Kept out of model context.
 const TICKET_ENTRY = "team-memory-ticket";
 
+// The team's hosted workspace. A local owner API needs TEAM_API_URL=http://127.0.0.1:4317.
+export const HOSTED_API_URL = "https://mongo-db-hackathon-xchange.vercel.app";
 const SETTING_KEYS = ["TEAM_API_URL", "TEAM_API_TOKEN", "ENGINEER_ID", "TEAM_TICKET"] as const;
 type Settings = Partial<Record<(typeof SETTING_KEYS)[number], string>>;
 
@@ -55,7 +57,7 @@ export default function teamMemoryExtension(pi: ExtensionAPI) {
   const { settings, source } = loadSettings();
   let apiUrl: string | null = null;
   let configError: string | null = null;
-  try { apiUrl = resolveApiUrl(settings.TEAM_API_URL ?? "http://127.0.0.1:4317"); }
+  try { apiUrl = resolveApiUrl(settings.TEAM_API_URL ?? HOSTED_API_URL); }
   catch (error) { configError = error instanceof Error ? error.message : "Invalid TEAM_API_URL."; }
   const remote = apiUrl !== null && apiUrl.startsWith("https:");
   // The local demo token only works against a local owner API; a remote team API needs a real token.

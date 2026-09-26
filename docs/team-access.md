@@ -119,6 +119,12 @@ node --env-file=/absolute/private/agent-alex-pi/credential.env skills/team-memor
 node --env-file=/absolute/private/agent-alex-pi/credential.env skills/team-memory/scripts/client.mjs memory
 ```
 
+A person's own machine can instead keep the file at `~/.team-memory/credential.env`
+(mode `0600`). The client and the Pi extension read it when the variables are not set,
+and default to the hosted workspace. Claude Code and Codex can connect to the hosted
+`/mcp` endpoint with no local install; see
+[Work on the hosted workspace](../README.md#work-on-the-hosted-workspace).
+
 `access` must return `mode: "team"`, the expected `actorId`, role, and team/project
 scope. It performs no record writes. A 401 means an absent/invalid/revoked token;
 403 means insufficient role; 503 means the API or storage is unavailable. HTML or a

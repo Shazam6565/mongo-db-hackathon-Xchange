@@ -20,6 +20,53 @@ For Codex and Phoenix MCP, use the [Xchange plugin and integration guide](docs/m
 The repo owns the portable plugin, 14 typed tools, stdio bundle and authenticated
 `/mcp` endpoint; installation and Phoenix credential/grant binding are separate.
 
+## Work on the hosted workspace
+
+The team shares one hosted backend: **<https://mongo-db-hackathon-xchange.vercel.app>**.
+It owns the Atlas data, so nothing has to run on your machine. You need `npm` only to change
+this repository's code.
+
+1. **Save your credential.** Ask the workspace owner for your own `credential.env` (never
+   share one). Save it as `~/.team-memory/credential.env`, then run
+   `chmod 600 ~/.team-memory/credential.env`. The Pi extension and the team skills read it
+   from there and use the hosted URL by default.
+2. **Browser.** Open the URL. You can view everything; to make changes, choose **Sign in**
+   and paste your token. On a Mac, this copies it without showing it:
+   `grep '^TEAM_API_TOKEN=' ~/.team-memory/credential.env | cut -d= -f2- | tr -d '\n' | pbcopy`
+3. **Connect your agent.** Each setup runs once.
+   - Claude Code, with nothing to install:
+
+     ```bash
+     claude mcp add --transport http --scope user xchange https://mongo-db-hackathon-xchange.vercel.app/mcp --header "Authorization: Bearer $(grep '^TEAM_API_TOKEN=' ~/.team-memory/credential.env | cut -d= -f2-)"
+     ```
+
+   - Codex, with nothing to install. Register the server, then start Codex with your token
+     in its environment:
+
+     ```bash
+     codex mcp add xchange --url https://mongo-db-hackathon-xchange.vercel.app/mcp --bearer-token-env-var TEAM_API_TOKEN
+     ```
+
+     ```bash
+     (set -a; . ~/.team-memory/credential.env; codex)
+     ```
+
+   - Pi: in a checkout, run `npm ci` once, then `pi install ./packages/pi-extension`. See the
+     [Pi extension guide](packages/pi-extension/README.md).
+   - Any other agent or script: `node skills/team-memory/scripts/client.mjs access` from a
+     checkout. It needs only Node 22, with no `npm install`.
+
+4. **Check.** In a new agent session, call the `xchange_access` tool, or run
+   `node skills/team-memory/scripts/client.mjs access`. It must report `mode: "team"`, your
+   own actor name and your role. A 401 means the token is missing or was not accepted.
+
+To work on the dashboard with shared data, run only the frontend against the hosted API:
+`(set -a; . ~/.team-memory/credential.env; TEAM_API_URL=https://mongo-db-hackathon-xchange.vercel.app npm run dev:dashboard)`.
+Changes you make there are real and are attributed to your token.
+
+Run a local API only to change API code. Leave `MONGODB_URI` empty so it uses disposable
+in-memory data: only the hosted deployment should write to the shared Atlas database.
+
 ## Repository status
 
 This is a **runnable skeleton, not the finished learning system**.
@@ -50,7 +97,10 @@ through `POST /v1/lessons` creates a **candidate**. Pi agents instead share thro
 which publishes immediately with no evaluation (audited as `lesson.published`). `POST /v1/lessons/:id/evaluate` scores a candidate
 against `evals/triage-suite.json` and publishes only when the gate passes for the expected version.
 
-## Quick start
+## Local development (npm)
+
+Use this to change the API or dashboard code. To use the shared workspace, see
+[Work on the hosted workspace](#work-on-the-hosted-workspace) instead.
 
 Prerequisites: **Node.js 22.19+** and npm. Use the latest Node 22 LTS release if possible.
 
