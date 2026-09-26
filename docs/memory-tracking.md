@@ -125,15 +125,24 @@ Timeline opens on **Lanes**: one horizontal time axis with a layer per source, i
 the order of the learning loop: Milestones (the event schedule and each harness
 version), Git (commits of the checkout the API runs in; unavailable on a hosted
 function), Tickets, Lessons, Activity, Memory reads and Canvases. **By who** regroups
-the same marks into one lane per person or agent. Scroll or pinch zooms around the
-pointer from two minutes to sixty days; drag, horizontal scroll or Shift+scroll pans;
-the overview strip shows the whole range and moves the visible window. Nearby marks
+the same marks into one lane per person or agent. The **Layers** menu hides or shows
+sources; a source that could not load says why there and in its own lane. Lanes keep
+one compact height; when there are more than fit, the rest scroll into view and the
+cells above and below the lane names count the lanes out of sight. Navigation matches
+the canvas: scrolling moves (vertically through the lanes while they overflow,
+otherwise through time; horizontal scroll or Shift+scroll pans time), Ctrl/⌘ + scroll
+or a pinch zooms around the pointer from two minutes to sixty days, and dragging the
+plot pans time and lanes together. Double-click zooms in, Shift + double-click zooms
+out. The bottom bar steps to the previous or next item, jumps to 1 h, 6 h, a day or a
+week, zooms, fits and centers on now; the overview strip shows the whole range, and
+its window can be dragged to move or pulled at either edge to zoom. Nearby marks
 merge into a numbered cluster: clicking zooms in, and marks recorded in the same
-instant are listed instead. Selecting a mark opens its details and draws a line to
-every record that references it or shares a reference (ticket keys, lesson IDs,
-canvas placements). That shows references, not causes. Keys: `+`/`-` zoom, arrows
-pan, `[`/`]` step through items, `F` fits, `N` centers on now. The view, grouping and
-hidden layers are kept in the URL. Lanes read the latest 100 tickets, lessons, audit
+instant are listed instead. Selecting a mark opens its details, scrolls its lane into
+view and draws a line to every record that references it or shares a reference
+(ticket keys, lesson IDs, canvas placements). That shows references, not causes.
+Keys: `+`/`-` zoom, ←/→ pan, ↑/↓ scroll the lanes, `[`/`]` step through items, `F`
+fits, `N` centers on now. The view, grouping and hidden layers are kept in the URL.
+Lanes read the latest 100 tickets, lessons, audit
 events and canvases, up to 300 activity records and 300 commits, and refresh every
 30 seconds while visible. **List** keeps the chronology below.
 

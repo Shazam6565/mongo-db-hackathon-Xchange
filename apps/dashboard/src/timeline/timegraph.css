@@ -1,70 +1,90 @@
-.timegraph-app { height: 100dvh; min-height: 520px; display: flex; flex-direction: column; }
-.team-session-shell > .timegraph-app { height: calc(100dvh - 32px); }
+.timegraph-app { height: 100dvh; min-height: 480px; display: flex; flex-direction: column; }
+/* Under the session bar, the shell shares the viewport and the Timeline takes whatever height the bar leaves. */
+.team-session-shell:has(> .timegraph-app) { height: 100dvh; min-height: 480px; display: flex; flex-direction: column; }
+.team-session-shell > .catalog-app.timegraph-app { flex: 1; height: auto; min-height: 0; }
 .tg-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.tg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 24px; border-bottom: 1px solid var(--line); }
+.tg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 24px; border-bottom: 1px solid var(--line); }
 .tg-segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; flex: none; }
-.catalog-app .tg-segmented button { border: 0; border-radius: 0; padding: 5px 11px; }
+.catalog-app .tg-segmented button { border: 0; border-radius: 0; padding: 4px 11px; }
 .catalog-app .tg-segmented button + button { border-left: 1px solid var(--line); }
 .catalog-app .tg-segmented button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.tg-layers { display: flex; flex-wrap: wrap; gap: 6px; }
-.catalog-app .tg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 14px; font-size: 12px; }
-.catalog-app .tg-chip[aria-pressed=false] { color: var(--muted); background: var(--soft); border-style: dashed; }
-.catalog-app .tg-chip[aria-pressed=false] .tg-swatch { background: transparent; box-shadow: inset 0 0 0 1.5px var(--swatch); }
+.tg-layers-menu > summary { padding: 4px 11px; }
+.tg-layer-panel { min-width: 270px; }
+.tg-layer-panel label { display: grid; grid-template-columns: auto auto minmax(0,1fr) auto; align-items: center; gap: 8px; }
+.tg-layer-panel small { display: block; color: #7d5d1f; font-size: 11px; line-height: 1.35; }
+.catalog-app .tg-layer-panel .text-button { justify-self: start; padding: 2px 0; }
 .tg-swatch { width: 9px; height: 9px; border-radius: 50%; background: var(--swatch); flex: none; }
-.tg-count { color: var(--muted); font-size: 11px; }
-.tg-zoom { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.catalog-app .tg-zoom button { padding: 4px 9px; }
+.tg-count { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .layer-milestones { --swatch: #56645c; } .layer-git { --swatch: #8a938e; } .layer-tickets { --swatch: #4f7ea8; } .layer-lessons { --swatch: #b07b1f; }
 .layer-activity { --swatch: #c28a45; } .layer-memory { --swatch: #8d6a9f; } .layer-canvases { --swatch: #4d8a66; }
 .tone-blue { --tone: #4f7ea8; --tone-soft: #e3eef8; } .tone-amber { --tone: #b07b1f; --tone-soft: #fbefd6; } .tone-sage { --tone: #4d8a66; --tone-soft: #e2f0e6; }
 .tone-neutral { --tone: #6c7771; --tone-soft: #eceeed; } .tone-red { --tone: #b2493f; --tone-soft: #f8e1de; }
-.tg-note { margin: 8px 24px 0; font-size: 12px; color: #7d5d1f; background: #faf1df; padding: 6px 10px; border-radius: 4px; }
 .timegraph-app .error-message { margin: 8px 24px 0; }
 .tg-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0,1fr); }
 .tg-body.with-panel { grid-template-columns: minmax(0,1fr) 340px; }
-.tg-chart { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline-offset: -3px; }
+.tg-chart { --tg-gutter: 168px; position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; outline-offset: -3px; }
 .tg-axis-row { display: flex; border-bottom: 1px solid var(--line); background: #fafbfa; flex: none; }
-.tg-corner { width: 176px; flex: none; padding: 7px 12px 0 24px; display: flex; flex-direction: column; font-size: 11px; color: var(--muted); }
-.tg-corner strong { color: var(--ink); font-size: 13px; font-weight: 600; }
-.tg-axis { display: block; flex: none; overflow: hidden; }
-.tg-day { font-size: 11px; font-weight: 600; fill: var(--ink); }
+.tg-corner { width: var(--tg-gutter); flex: none; padding: 0 8px 0 18px; display: flex; flex-direction: column; justify-content: center; font-size: 10.5px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.tg-corner > * { overflow: hidden; text-overflow: ellipsis; }
+.tg-corner strong { color: var(--ink); font-size: 12px; font-weight: 600; }
+.tg-axis { display: block; flex: none; cursor: grab; touch-action: none; user-select: none; }
+.tg-axis:active { cursor: grabbing; }
+.tg-day { font-size: 10.5px; font-weight: 600; fill: var(--ink); }
 .tg-tick { stroke: #b9c2bd; }
 .tg-tick-label { font-size: 10.5px; fill: var(--muted); }
 .tg-now line { stroke: #b2493f; stroke-width: 1.5; }
 .tg-now text { font-size: 10px; fill: #b2493f; font-weight: 700; }
-.tg-lanes { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; align-items: flex-start; }
-.tg-lane-labels { width: 176px; flex: none; position: relative; z-index: 1; background: var(--bg); }
-.tg-lane-label { display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0 12px 0 21px; border-bottom: 1px solid var(--line); border-left: 3px solid var(--swatch, #d5dbd7); overflow: hidden; }
-.tg-lane-label strong { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tg-lane-label span { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The frame holds the scrolling lanes plus the hints for lanes scrolled out of sight. */
+.tg-lanes-frame { position: relative; flex: 1; min-height: 0; display: flex; }
+.tg-lanes { flex: 1; min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; align-items: flex-start; }
+.tg-lane-labels { width: var(--tg-gutter); flex: none; position: relative; z-index: 1; background: var(--bg); }
+.tg-lane-label { display: flex; align-items: center; gap: 8px; padding: 0 10px 0 15px; border-bottom: 1px solid var(--line); border-left: 3px solid var(--swatch, #d5dbd7); background: var(--bg); }
+.tg-lane-label:nth-child(even) { background: #fafbfa; }
+.tg-lane-label.is-active { background: var(--accent-soft); }
+.tg-lane-label strong { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg-lane-label span { flex: none; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tg-plot { flex: none; cursor: grab; touch-action: none; user-select: none; position: relative; }
 .tg-plot:active { cursor: grabbing; }
 .tg-plot svg { display: block; overflow: hidden; }
-.tg-window { fill: #f4f7f5; }
+.tg-band { fill: #fafbfa; }
+.tg-window { fill: #315e4d; opacity: .045; }
 .tg-grid { stroke: #edf0ee; }
 .tg-lane-rule { stroke: var(--line); }
+.tg-lane-note { font-size: 11px; font-style: italic; fill: var(--muted); pointer-events: none; }
 .tg-span rect { fill: var(--tone); opacity: .25; }
 .tg-span.is-window rect { fill: #e8eee9; opacity: 1; stroke: #cdd8d0; }
 .tg-span text { font-size: 11px; fill: #45534b; font-weight: 600; pointer-events: none; }
 .tg-mark { cursor: pointer; }
+.tg-hit { fill: transparent; }
 .tg-mark circle, .tg-mark path { fill: var(--tone); stroke: #fff; stroke-width: 1.5; }
 .tg-mark.is-cluster circle { fill: var(--tone-soft); stroke: var(--tone); }
-.tg-count-label { font-size: 10.5px; font-weight: 700; fill: var(--tone); text-anchor: middle; pointer-events: none; }
+.tg-count-label { font-size: 10px; font-weight: 700; fill: var(--tone); text-anchor: middle; pointer-events: none; }
 .tg-label { font-size: 11px; fill: #3d4541; pointer-events: none; }
 .tg-mark:hover circle, .tg-mark:hover path { stroke: #26302b; }
 .tg-mark.is-related circle, .tg-mark.is-related path { stroke: var(--accent); stroke-width: 3; }
 .tg-mark.is-selected circle, .tg-mark.is-selected path { stroke: #1b2520; stroke-width: 3; }
 .tg-link { fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-dasharray: 4 3; opacity: .75; pointer-events: none; }
 .tg-now-line { stroke: #b2493f; stroke-width: 1.2; opacity: .55; pointer-events: none; }
-.tg-empty { padding: 30px; color: var(--muted); }
+.tg-empty { position: absolute; top: 0; left: 0; margin: 0; padding: 24px; color: var(--muted); }
+.tg-fade { position: absolute; left: 0; right: 0; height: 14px; z-index: 2; pointer-events: none; }
+.tg-fade.is-above { top: 0; background: linear-gradient(#1829201c, transparent); }
+.tg-fade.is-below { bottom: 0; background: linear-gradient(transparent, #1829201c); }
+/* Lanes out of sight are counted in the empty cells above and below the labels: the axis corner and the overview's gutter. */
+.catalog-app .tg-more { padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--accent); font-size: 10.5px; font-weight: 600; line-height: 1.3; text-align: left; }
+.catalog-app .tg-more:hover { background: transparent; text-decoration: underline; text-underline-offset: 2px; }
+.catalog-app .tg-more.is-below { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); max-width: calc(var(--tg-gutter) - 26px); overflow: hidden; text-overflow: ellipsis; }
 .tg-tooltip { position: absolute; z-index: 5; pointer-events: none; background: #1f2a24; color: #f2f5f3; border-radius: 6px; padding: 8px 10px; font-size: 11.5px; line-height: 1.4; width: 280px; box-shadow: 0 6px 20px #0003; display: grid; gap: 6px; }
 .tg-tooltip span { display: block; color: #aebdb4; font-size: 10.5px; }
 .tg-tooltip .muted { color: #aebdb4; }
-.tg-overview { flex: none; height: 44px; border-top: 1px solid var(--line); padding: 0 24px 0 176px; cursor: pointer; touch-action: none; user-select: none; background: #fafbfa; }
-.tg-overview-track { position: relative; height: 100%; }
+.tg-overview { position: relative; flex: none; height: 34px; border-top: 1px solid var(--line); padding: 0 16px 0 var(--tg-gutter); background: #fafbfa; }
+.tg-overview-track { position: relative; height: 100%; cursor: pointer; touch-action: none; user-select: none; }
 .tg-density { position: absolute; width: 2px; height: 3px; margin-left: -1px; background: var(--tone); opacity: .85; pointer-events: none; }
 .tg-overview-now { position: absolute; top: 3px; bottom: 3px; width: 1.5px; background: #b2493f; pointer-events: none; }
 .tg-brush { position: absolute; top: 3px; bottom: 3px; border: 1.5px solid var(--accent); background: #315e4d12; border-radius: 4px; cursor: grab; min-width: 6px; }
+.tg-brush-edge { position: absolute; top: -3px; bottom: -3px; width: 12px; cursor: ew-resize; }
+.tg-brush-edge.is-start { left: -7px; }
+.tg-brush-edge.is-end { right: -7px; }
+.tg-brush-edge::after { content: ""; position: absolute; top: 9px; bottom: 9px; left: 5px; width: 2px; border-radius: 1px; background: var(--accent); }
 .tg-panel { border-left: 1px solid var(--line); padding: 16px 18px; overflow-y: auto; font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }
 .tg-panel h2 { font-size: 15px; font-weight: 600; margin: 6px 0 4px; line-height: 1.4; }
 .tg-panel h3 { font-size: 12px; font-weight: 600; margin: 20px 0 8px; }
@@ -76,7 +96,16 @@
 .tg-list small { grid-column: 2; color: var(--muted); font-size: 10.5px; }
 .tg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); margin-top: 5px; }
 .tg-fine { font-size: 11px; margin-top: 16px; }
-.tg-footer { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 8px 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
-.tg-hint { margin-left: auto; }
-@media (max-width: 900px) { .tg-body.with-panel { grid-template-columns: minmax(0,1fr); } .tg-panel { position: fixed; inset: 54px 0 0 auto; width: min(360px, 100%); background: var(--bg); z-index: 6; box-shadow: -12px 0 36px #18292014; } }
-@media (max-width: 700px) { .tg-toolbar, .tg-footer { padding-left: 14px; padding-right: 14px; } .tg-hint { display: none; } .tg-note, .timegraph-app .error-message { margin-left: 14px; margin-right: 14px; } }
+/* The bottom bar: what is in view on the left, the ways to move through time on the right. */
+.tg-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 5px 12px 5px 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.tg-warn { color: #8a6420; }
+.catalog-app .tg-footer .text-button { padding: 0 0 0 6px; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
+.tg-hint { white-space: nowrap; }
+.tg-nav, .tg-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.catalog-app .tg-nav button { padding: 2px 9px; font-size: 12px; }
+.catalog-app .tg-nav button[aria-pressed=true] { background: var(--accent-soft); border-color: #cfe0d6; color: var(--accent); font-weight: 600; }
+.tg-span-label { min-width: 48px; text-align: center; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tg-divider { width: 1px; height: 18px; background: var(--line); margin: 0 3px; }
+@media (max-width: 1280px) { .tg-hint { display: none; } }
+@media (max-width: 900px) { .tg-body.with-panel { grid-template-columns: minmax(0,1fr); } .tg-panel { position: fixed; inset: 54px 0 0 auto; width: min(360px, 100%); background: var(--bg); z-index: 6; box-shadow: -12px 0 36px #18292014; } .team-session-shell .tg-panel { top: 93px; } }
+@media (max-width: 700px) { .tg-toolbar { padding-left: 14px; padding-right: 14px; } .tg-footer { padding-left: 14px; padding-right: 10px; } .tg-presets, .tg-divider { display: none; } .timegraph-app .error-message { margin-left: 14px; margin-right: 14px; } }

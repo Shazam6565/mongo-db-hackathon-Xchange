@@ -5,8 +5,9 @@ body { display: flex; flex-direction: column; min-height: 100dvh; }
 .preview-banner summary { cursor: pointer; width: fit-content; text-decoration: underline; text-underline-offset: 3px; }
 .preview-banner p { max-width: 900px; margin: 8px 0 0; }
 #root { flex: 1; min-height: 0; }
-body:has(.canvas-app) { height: 100dvh; }
+body:has(.canvas-app), body:has(.timegraph-app) { height: 100dvh; }
 body .canvas-app { height: 100%; min-height: 500px; }
+body .timegraph-app { height: 100%; min-height: 480px; }
 body .storage-label, body .catalog-toolbar > .primary, body .canvas-footer > .primary { display: none; }
 @media (max-width: 520px) {
   .preview-banner { padding: 10px 14px; }
