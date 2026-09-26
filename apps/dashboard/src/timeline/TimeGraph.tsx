@@ -309,7 +309,7 @@ export function TimeGraph({ modeSwitch, actions, reloadToken = 0 }: { modeSwitch
           </>}
         </aside>}
       </div>
-      <footer className="tg-footer"><span>{visibleItems.length} of {items.filter(item => !item.id.startsWith("schedule:")).length} items in view{data?.truncated ? " · oldest activity not loaded" : ""}</span>
+      <footer className="tg-footer"><span>{visibleItems.filter(item => !item.id.startsWith("schedule:")).length} of {items.filter(item => !item.id.startsWith("schedule:")).length} items in view{data?.truncated ? " · oldest activity not loaded" : ""}</span>
         <span className="tg-hint">Scroll to zoom · drag or Shift+scroll to pan · [ ] step through items · F fits</span><span>{loadedAt ? `Updated ${shortTime(loadedAt)}` : ""}</span></footer>
     </main>
   </div>;

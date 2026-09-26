@@ -6,13 +6,18 @@
 2. Inspect the sample published lesson. It is labeled as demo data with no real validation.
 3. Start Pi with the extension using the command in the root README.
 4. Run `/team-memory`; inspect `.team-memory/MEMORY.md` in that agent's current working directory.
-5. Run `/share-lesson Title | Lesson | DEMO-101`, or POST `examples/lesson-candidate.json` to the API.
+5. POST `examples/lesson-candidate.json` to `/v1/lessons` to create a candidate.
 6. Refresh the dashboard. The new record is a candidate.
 7. Refresh team memory. The candidate remains absent until it passes the fixed-suite evaluation below.
 
 This checks the proposal/read plumbing. With MongoDB enabled, candidates survive API restarts;
 the database starts empty, so there is initially no published memory. A candidate cannot set its
 own status. Publication happens only through the evaluation route below.
+
+Pi's `/share-lesson` command and `share_lesson` tool use `/v1/lessons/share`,
+which publishes immediately without evaluation. Use the candidate endpoint
+above when demonstrating the gate. For seeded demo tickets and persistent
+local storage, follow [local setup](local-setup.md).
 
 ## Fixed-suite gate
 

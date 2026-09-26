@@ -96,6 +96,9 @@ Use this to change the API or dashboard code. To use the shared workspace, see
 
 Prerequisites: **Node.js 22.19+** and npm. Use the latest Node 22 LTS release if possible.
 
+For Pi, a persistent local database, seeded tickets, and a full suite without
+skipped MongoDB tests, follow [the complete local setup](docs/local-setup.md).
+
 ```bash
 nvm install
 nvm use
