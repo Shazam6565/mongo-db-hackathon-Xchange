@@ -11,6 +11,10 @@ Primary track: **Recursive Harnessing**. Persistent cross-session knowledge also
 long-horizon work. Sharing memory alone is not the novelty: the intended contribution is a measured
 loop from one engineer's failure to an improvement in another engineer's workflow.
 
+For teammates and agents joining the shared workspace, start with
+[team access and onboarding](docs/team-access.md): individual credentials, role
+permissions, browser sign-in, agent read/write commands, rotation and revocation.
+
 ## Repository status
 
 This is a **runnable skeleton, not the finished learning system**.
@@ -31,6 +35,7 @@ This is a **runnable skeleton, not the finished learning system**.
 | Semantic retrieval / embedding generation / Atlas Vector Search | Adapter interface only |
 | Live synchronization through Change Streams and SSE | Design only; refresh is currently per run/manual |
 | Individual team grants, roles and browser sessions | Implemented with local security checks; real member enrollment pending |
+| Private credential issuance and authenticated access checks | Implemented; run `npm run access:issue -- --help` and follow the onboarding guide |
 | Vercel live UI and server API | Deployment configuration implemented; remote deployment and Atlas route unverified |
 
 No LLM calls or paid cloud resources are created by `npm run dev` or `npm run evaluate`. The single published lesson
@@ -121,6 +126,8 @@ files and conversations remain local; shared memory is a generated view of backe
 The loopback server is for a single-machine demo. The Vercel entry supports individually
 issued team credentials and browser sessions; deployment and real teammate enrollment
 still require verification. See [live hosting and access](docs/frontend-sharing.md).
+Use a separate credential for every teammate and agent installation; follow
+[team access](docs/team-access.md) for hosted onboarding and the `access` check.
 
 ## Frontend integration
 
@@ -178,6 +185,7 @@ the server. Hosted `/session` supports GET (status), POST (sign in), DELETE (sig
 | Method | Route | Behavior |
 | --- | --- | --- |
 | GET | `/health` | Health, storage mode, evaluator version, and suite version |
+| GET | `/v1/access` | Authenticated identity, role, local/team mode, and fixed project scope; no record writes |
 | GET | `/v1/lessons` | Up to 100 recent scoped lessons, including candidates |
 | GET | `/v1/tickets` | Up to 100 recent scoped tickets |
 | GET | `/v1/tickets/:id` | One scoped ticket, including older records linked directly |
