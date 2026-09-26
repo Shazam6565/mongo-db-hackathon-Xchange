@@ -56,7 +56,7 @@ For another agent environment provide only `TEAM_API_URL` and that agent's indiv
 
 Server-only `.env` is ignored by Git and should be readable only by its owner. Set `STORAGE_MODE=mongodb`, `MONGODB_URI`, `MONGODB_DATABASE`, a safe `MONGODB_LABEL`, and shared team/project scope. An explicitly requested MongoDB mode fails startup if configuration or connection fails; it never falls back to fixtures. `/health` performs a real database ping and returns only a safe display label and status. Connection pools and waits are bounded. No `VITE_` credential variables are used.
 
-On 26 September the owner-authorized Atlas Sandbox was connected with database `team_memory_harness` and scope `xchange-team / xchange`. The agent client saved the editable **Shared learning loop** guide. Its six notes and six connections survived an API process restart unchanged and rendered in the browser. The guide describes intended flow; it is not a learned lesson or a claim that an agent improved.
+On 26 September the owner-authorized Atlas Sandbox was connected with database `team_memory_harness` and scope `xchange-team / xchange`. The agent client saved the editable **Shared learning loop** guide. Its six notes and six connections survived an API process restart unchanged and rendered in the browser. The guide describes intended flow; it is not a learned lesson or a claim that an agent improved. Later that day, with the owner's approval, `npm run seed -- corpus/xchange.json` created the five Start here guides in the same scope (every other corpus record reported `exists`). Each is revision 1 by `team-guides`, and the six ticket cards in **What works and what is next** resolved against the Atlas tickets.
 
 ## Verification
 
