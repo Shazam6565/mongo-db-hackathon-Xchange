@@ -116,7 +116,7 @@ export function CanvasEditor({ id, scope, records, recordsStatus, writable, onCl
         setDoc({ baseRevision: 0, base: null, draft: local.draft, references: [] }); setPhase("ready");
         if (local.baseRevision > 0) setNotice({ tone: "warn", text: "The saved copy of this canvas is no longer available. Your unsaved version is here; save it to recreate the canvas." });
       } else if (missing) setPhase("missing");
-      else { setError(errorMessage(failure)); setPhase("failed"); }
+      else { setError(`${errorMessage(failure)}${writable && readDraft(scope, id) ? " Your unsaved changes to this canvas are safe in this browser." : ""}`); setPhase("failed"); }
     });
     return () => control.abort();
   // Reload only for a different canvas or an explicit retry; a catalog refresh must not replace edits.
