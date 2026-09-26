@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="960" viewBox="0 0 1200 960" role="img" aria-labelledby="title desc">
+  <title id="title">Team Memory Harness architecture sketch</title>
+  <desc id="desc">Two independent engineers use Pi extensions connected to a shared memory API and MongoDB. Evaluation, publishing, Jira, and live push are planned.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8" fill="none" stroke="#567164" stroke-width="1.3"/></marker>
+    <style>
+      text { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; fill: #203c31; }
+      .label { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; fill: #67826e; }
+      .heading { font-size: 20px; font-weight: 600; }
+      .body { font-size: 13px; fill: #637569; }
+      .small { font-size: 11px; fill: #6f8276; }
+      .box { fill: #fffef9; stroke: #b8cbb9; stroke-width: 1.5; rx: 14; }
+      .planned { fill: #eef1e9; stroke: #a3b4a3; stroke-width: 1.5; stroke-dasharray: 6 5; rx: 14; }
+      .link { fill: none; stroke: #567164; stroke-width: 1.6; marker-end: url(#arrow); }
+      .future { fill: none; stroke: #839383; stroke-width: 1.5; stroke-dasharray: 6 5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1200" height="960" fill="#f4f6ef"/>
+  <text x="56" y="48" class="label">TEAM MEMORY / ARCHITECTURE SKETCH</text>
+  <text x="56" y="91" font-size="31" font-weight="600" letter-spacing="-1">Independent work. Shared engineering lessons.</text>
+  <text x="56" y="119" class="body">Pi owns each agent loop. MongoDB owns the shared knowledge and its history.</text>
+
+  <rect class="box" x="56" y="160" width="435" height="150"/>
+  <text x="79" y="190" class="label">ENGINEER A / LOCAL WORKSPACE</text>
+  <text x="79" y="223" class="heading">Pi + TypeScript extension</text>
+  <text x="79" y="249" class="body">Ticket A · separate conversation and working copy</text>
+  <text x="79" y="276" class="small">Generated cache: .team-memory/MEMORY.md</text>
+
+  <rect class="box" x="709" y="160" width="435" height="150"/>
+  <text x="732" y="190" class="label">ENGINEER B / SEPARATE WORKSPACE</text>
+  <text x="732" y="223" class="heading">Pi + TypeScript extension</text>
+  <text x="732" y="249" class="body">Ticket B · separate conversation and working copy</text>
+  <text x="732" y="276" class="small">Generated cache: .team-memory/MEMORY.md</text>
+
+  <path class="link" d="M310 310 V345 H480 V395" marker-start="url(#arrow)"/>
+  <path class="link" d="M890 310 V345 H720 V395" marker-start="url(#arrow)"/>
+  <text x="63" y="341" class="small">propose / retrieve</text>
+  <text x="939" y="341" class="small">propose / retrieve</text>
+
+  <rect x="398" y="395" width="404" height="166" rx="14" fill="#173f31"/>
+  <text x="423" y="428" style="fill:#a6c5a5" class="label">SHARED SERVICE</text>
+  <text x="423" y="464" style="fill:#f1f6e9" class="heading">Memory API · Node / TypeScript</text>
+  <text x="423" y="493" style="fill:#bad0bb" class="body">Scope → validate → store → retrieve</text>
+  <text x="423" y="525" style="fill:#bad0bb" class="small">Local token now · per-user remote auth planned</text>
+
+  <rect class="box" x="56" y="420" width="240" height="118"/>
+  <text x="76" y="451" class="label">VISIBILITY</text>
+  <text x="76" y="480" class="heading">React dashboard</text>
+  <text x="76" y="507" class="small">Lessons · evidence · status</text>
+  <path class="link" d="M296 478 H398"/>
+
+  <rect class="planned" x="905" y="420" width="239" height="118"/>
+  <text x="925" y="451" class="label">PLANNED ADAPTER</text>
+  <text x="925" y="480" class="heading">Jira tickets</text>
+  <text x="925" y="507" class="small">Read / propose triage changes</text>
+  <path class="future" d="M905 478 H802"/>
+
+  <path class="link" d="M500 561 V606 H304 V654" marker-start="url(#arrow)"/>
+  <path class="future" d="M700 561 V606 H918 V654" marker-start="url(#arrow)"/>
+  <text x="78" y="591" class="small">Persist candidates / read published lessons</text>
+  <text x="738" y="591" class="small">Evaluate proposed workflow changes</text>
+
+  <rect class="box" x="56" y="654" width="500" height="153"/>
+  <text x="80" y="685" class="label">AUTHORITATIVE SHARED STORE</text>
+  <text x="80" y="718" class="heading">MongoDB Atlas</text>
+  <text x="80" y="745" class="body">Lessons repository implemented · in-memory demo default</text>
+  <text x="80" y="772" class="small">Planned: vectors, evaluations, harness versions, audit events</text>
+
+  <rect class="planned" x="709" y="654" width="435" height="153"/>
+  <text x="732" y="685" class="label">PLANNED WORKER + PUBLICATION GATE</text>
+  <text x="732" y="718" class="heading">Baseline vs candidate</text>
+  <text x="732" y="745" class="body">Fixed cases · real scores · regression checks</text>
+  <text x="732" y="772" class="small">Pass → versioned publish · Fail → remain unpublished</text>
+  <path class="future" d="M709 729 H556"/>
+  <text x="585" y="712" class="small">results</text>
+
+  <rect x="56" y="839" width="1088" height="51" rx="9" fill="#e6ede0"/>
+  <text x="76" y="861" font-size="12" font-weight="600">Synchronization</text>
+  <text x="76" y="879" class="small">Now: refresh before each new agent run / manual command. Planned: Change Streams → scoped SSE → refresh at a safe boundary.</text>
+  <line x1="56" y1="926" x2="86" y2="926" stroke="#567164" stroke-width="2"/>
+  <text x="96" y="930" class="small">Runnable starter</text>
+  <line x1="250" y1="926" x2="280" y2="926" stroke="#839383" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="290" y="930" class="small">Planned</text>
+  <text x="765" y="930" class="small">Sample data is labeled. No evaluation has run.</text>
+</svg>

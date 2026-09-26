@@ -1,0 +1,14 @@
+{
+  "title": "Check event deduplication when investigating duplicate effects",
+  "lesson": "In the demo event platform, consumers may receive an event more than once. Check event ID deduplication before treating duplicate effects as a frontend rendering bug.",
+  "authorId": "engineer-a",
+  "appliesTo": ["event-sdk", "notifications", "activity-feed"],
+  "evidence": [
+    { "kind": "ticket", "reference": "DEMO-101", "summary": "Synthetic example requiring evaluator verification." }
+  ],
+  "proposedChange": {
+    "instructions": ["Consider repeated delivery when triaging duplicate effects in event consumers."],
+    "verificationSteps": ["Replay an event with the same ID twice and inspect the number of side effects."],
+    "suggestedTools": ["read", "bash"]
+  }
+}

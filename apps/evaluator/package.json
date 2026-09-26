@@ -1,0 +1,8 @@
+{
+  "name": "@team-memory/evaluator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "evaluate": "tsx src/index.ts" },
+  "dependencies": { "@team-memory/contracts": "0.1.0" }
+}

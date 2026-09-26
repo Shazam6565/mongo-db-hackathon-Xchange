@@ -1,0 +1,19 @@
+{
+  "suiteVersion": "triage-v0-fixtures-only",
+  "description": "Synthetic fixtures. No baseline or candidate has been evaluated. Keep answers outside agent-visible context.",
+  "metrics": ["component_accuracy", "required_checks_coverage", "regression_count"],
+  "cases": [
+    {
+      "id": "duplicate-feed",
+      "ticket": { "key": "DEMO-202", "summary": "Activity feed contains the same entry twice", "description": "The event consumer receives an event, then receives the same event ID after a retry." },
+      "expectedComponent": "event-platform",
+      "requiredChecks": ["Inspect event ID deduplication", "Replay the same event twice"]
+    },
+    {
+      "id": "frontend-negative-control",
+      "ticket": { "key": "DEMO-203", "summary": "A feed entry is rendered twice", "description": "The API returns one entry. The UI renders two copies after a local state update. No duplicate event was received." },
+      "expectedComponent": "frontend",
+      "requiredChecks": ["Compare the API response with rendered UI state"]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+:root { font-family: 'DM Sans', system-ui, sans-serif; color: #18352e; background: #f3f5ee; font-synthesis: none; }
+* { box-sizing: border-box; } body { margin: 0; } main { max-width: 1240px; padding: 0 44px; margin: auto; }
+header { height: 96px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #d5ded3; }
+.wordmark { font-size: 14px; font-weight: 800; letter-spacing: .08em; } .wordmark span { color: #829186; font-weight: 500; }
+.tag { border: 1px solid #c5d2c5; border-radius: 30px; padding: 8px 14px; font-size: 12px; }
+.intro { display: grid; grid-template-columns: 1fr 280px; align-items: end; gap: 60px; margin: 64px 0 46px; }
+.eyebrow { font-size: 11px; letter-spacing: .13em; font-weight: 700; color: #657c6c; margin: 0 0 18px; }
+h1, h2, h3 { font-family: 'Manrope', system-ui, sans-serif; } h1 { font-size: clamp(36px, 4.7vw, 58px); letter-spacing: -.055em; line-height: 1.12; margin: 0; font-weight: 600; }
+.lede { color: #637368; font-size: 16px; max-width: 530px; line-height: 1.65; margin: 23px 0 0; }
+aside { background: #e6ecdf; border: 1px solid #d4dec9; border-radius: 12px; padding: 22px; font-size: 13px; font-weight: 700; }
+aside p { color: #61735f; font-size: 12px; line-height: 1.65; font-weight: 400; margin-bottom: 0; } .status-dot { display: inline-block; width: 7px; height: 7px; background: #3c8d51; border-radius: 50%; margin-right: 8px; }
+.pipeline { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid #d3dccf; border-radius: 12px; overflow: hidden; background: #eaf0e4; }
+.pipeline div { display: flex; gap: 14px; padding: 22px; border-right: 1px solid #d3dccf; align-items: center; } .pipeline div:last-child { border: 0; } .pipeline span { color: #85977a; font-size: 12px; } .pipeline strong { font-size: 12px; font-weight: 500; }
+.library { margin: 52px 0 72px; } .section-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 23px; } .section-top .eyebrow { margin-bottom: 9px; } h2 { margin: 0; font-size: 23px; letter-spacing: -.03em; font-weight: 600; }
+button { background: #183d31; color: #f5f7ef; border: 0; border-radius: 8px; padding: 11px 19px; cursor: pointer; font: inherit; font-size: 12px; } button:disabled { opacity: .6; cursor: wait; } button:focus-visible, summary:focus-visible { outline: 3px solid #75a571; outline-offset: 4px; }
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; } article { background: #fffef8; border: 1px solid #dbe2d6; border-radius: 12px; padding: 26px; }
+.card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; color: #7c887d; } .badge { color: #376545; border-radius: 4px; padding: 5px 8px; background: #e3efdc; text-transform: uppercase; font-size: 9px; letter-spacing: .07em; font-weight: 700; }
+h3 { font-size: 20px; line-height: 1.4; letter-spacing: -.03em; margin: 21px 0 12px; font-weight: 600; } article p { font-size: 13px; line-height: 1.7; color: #68776b; }
+.demo-note { color: #936d33; background: #faf2df; padding: 9px 11px; border-radius: 5px; font-size: 11px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0; } .chips span { padding: 4px 7px; border: 1px solid #dee5d9; border-radius: 4px; font-size: 10px; color: #6c7a6c; }
+details { border-top: 1px solid #e5e9df; padding-top: 16px; font-size: 12px; } summary { cursor: pointer; color: #45634b; } details li { line-height: 1.7; color: #697768; margin: 8px 0; } details ul { padding-left: 18px; }
+.error { padding: 15px; background: #f7e5dc; border-radius: 8px; color: #883b22; }
+footer { border-top: 1px solid #d5ded3; display: flex; justify-content: space-between; padding: 24px 0; font-size: 11px; color: #80907e; }
+@media (max-width: 800px) { main { padding: 0 22px; } .intro { grid-template-columns: 1fr; gap: 26px; margin-top: 38px; } aside { max-width: 430px; } .pipeline { grid-template-columns: 1fr 1fr; } .pipeline div { border-bottom: 1px solid #d3dccf; } .cards { grid-template-columns: 1fr; } footer { gap: 16px; flex-wrap: wrap; } }
