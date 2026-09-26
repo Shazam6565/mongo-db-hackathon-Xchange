@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { ActivityKindSchema, ActivityPageSchema, activityLink, type ActivityPage } from "../../../../packages/contracts/src/activity.js";
 import { ScopeSchema } from "@team-memory/contracts";
@@ -8,6 +8,7 @@ import { label } from "../catalog/model.js";
 import { AddActivity } from "./AddActivity.js";
 import { OutcomeEvidence } from "./ActivityHistory.js";
 import { canWrite, useSession } from "../auth/SessionContext.js";
+import { TimeGraph } from "../timeline/TimeGraph.js";
 import "../catalog/catalog.css";
 import "./activity.css";
 
@@ -22,7 +23,19 @@ function dateFilter(value: string | null): string {
   const date = new Date(`${value}T00:00:00Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : "";
 }
+// Lanes: every source on one zoomable time axis. List: the recorded chronology with history filters.
 export function Timeline() {
+  const session = useSession();
+  const [mode, setMode] = useState<"lanes" | "list">(() => { const query = new URLSearchParams(window.location.search); return query.get("mode") === "list" || query.get("rootId") ? "list" : "lanes"; });
+  const [adding, setAdding] = useState(false), [reload, setReload] = useState(0);
+  const addButton = useRef<HTMLButtonElement>(null);
+  function choose(next: "lanes" | "list") { window.history.replaceState(null, "", `/?view=timeline${next === "list" ? "&mode=list" : ""}`); setMode(next); }
+  const modeSwitch = <div className="tg-segmented" role="group" aria-label="Timeline view">{(["lanes", "list"] as const).map(value => <button key={value} aria-pressed={mode === value} onClick={() => choose(value)}>{value === "lanes" ? "Lanes" : "List"}</button>)}</div>;
+  if (mode === "list") return <TimelineList modeSwitch={modeSwitch} />;
+  return <><TimeGraph modeSwitch={modeSwitch} reloadToken={reload} actions={canWrite(session) && <button ref={addButton} className="primary" onClick={() => setAdding(true)}>New record</button>} />
+    {adding && <AddActivity onClose={() => { setAdding(false); addButton.current?.focus(); }} onSaved={() => { setAdding(false); setReload(value => value + 1); addButton.current?.focus(); }} />}</>;
+}
+function TimelineList({ modeSwitch }: { modeSwitch: ReactNode }) {
   const session = useSession();
   const initial = new URLSearchParams(window.location.search);
   const [source, setSource] = useState(initial.get("source") === "memory" ? "memory" : "records");
@@ -59,7 +72,7 @@ export function Timeline() {
   }
   useEffect(() => {
     setPage(undefined); setAudit(undefined);
-    const params = new URLSearchParams({ view: "timeline" });
+    const params = new URLSearchParams({ view: "timeline", mode: "list" });
     if (source === "memory") params.set("source", source);
     if (kind) params.set("kind", kind);
     if (since) params.set("since", since); if (until) params.set("until", until);
@@ -78,6 +91,7 @@ export function Timeline() {
     <AppFrame active="Timeline" data={health && scope ? { ...health, scope } : undefined} error={Boolean(error)} />
     <main id="timeline-content" className="catalog-main" tabIndex={-1}>
       <div className="timeline-toolbar">
+        {modeSwitch}
         <label>Show <select value={source} onChange={event => setSource(event.target.value)}><option value="records">Decisions and effects</option><option value="memory">Memory lifecycle</option></select></label>
         {source === "records" && <label>Type <select value={kind} onChange={event => setKind(event.target.value)}><option value="">All types</option>{ActivityKindSchema.options.map(value => <option key={value} value={value}>{label(value)}</option>)}</select></label>}
         <label>From <input type="date" value={since} onChange={event => setSince(event.target.value)} /></label>
@@ -86,7 +100,7 @@ export function Timeline() {
         {canWrite(session) && <button ref={addButton} className="primary" onClick={() => setAdding(true)}>New record</button>}
       </div>
       <div className="timeline-content">
-        {rootId && <p className="timeline-caption">History for {rootKind} {rootId} · <a href="/?view=timeline">Show all records</a></p>}
+        {rootId && <p className="timeline-caption">History for {rootKind} {rootId} · <a href="/?view=timeline&mode=list">Show all records</a></p>}
         <p className="timeline-caption">{source === "records" ? <>Recorded chronology. Applications describe changed actions; outcomes retain comparisons and uncertainty. {session.mode === "team" ? "New team records use authenticated member IDs; earlier local records may retain self-reported labels." : "Local reporter labels are self-reported, not authenticated identities."}</> : "Latest 100 lifecycle events. A retrieval means context was fetched, not used or proven helpful. Date filters apply to this recent window."}</p>
         {error ? <p role="alert" className="error-message">{error} <button onClick={() => void load()}>Retry</button></p> : source === "records" ? <ol className="timeline-list">{records.map(record => <li key={record.id}>
           <time dateTime={record.recordedAt}>{new Date(record.recordedAt).toLocaleString()}</time><div className="timeline-entry">

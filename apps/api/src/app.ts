@@ -2,6 +2,7 @@ import { InMemoryActivityRepository, registerActivity, type ActivityRepository }
 import Fastify from "fastify";
 import { z } from "zod";
 import { InMemoryCanvasRepository, registerCanvases, type CanvasRepository } from "./canvases.js";
+import { registerGitHistory } from "./git-history.js";
 import { InMemoryTicketRepository, registerTickets, type TicketRepository } from "./tickets.js";
 import {
   CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, engineerIdFromHeader, type Scope,
@@ -82,6 +83,7 @@ export function buildApp(options: AppOptions) {
     registerTickets(api, tickets, options.scope);
     registerActivity(api, activity, options.scope, options.repository);
     registerCanvases(api, canvases, options.repository, tickets, options.scope);
+    registerGitHistory(api);
     // This route runs behind the same authentication hook as all record operations.
     api.get("/access", async (request) => {
       const principal = teamAuth?.authenticate(request);

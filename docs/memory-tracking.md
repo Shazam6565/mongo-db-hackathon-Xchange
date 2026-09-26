@@ -121,6 +121,22 @@ existing recent-record table. Search and filters apply to the latest 100 activit
 records in that view. Record details expose the full root history through pagination,
 linked application/outcome/correction forms, and reported measurements.
 
+Timeline opens on **Lanes**: one horizontal time axis with a layer per source, in
+the order of the learning loop: Milestones (the event schedule and each harness
+version), Git (commits of the checkout the API runs in; unavailable on a hosted
+function), Tickets, Lessons, Activity, Memory reads and Canvases. **By who** regroups
+the same marks into one lane per person or agent. Scroll or pinch zooms around the
+pointer from two minutes to sixty days; drag, horizontal scroll or Shift+scroll pans;
+the overview strip shows the whole range and moves the visible window. Nearby marks
+merge into a numbered cluster: clicking zooms in, and marks recorded in the same
+instant are listed instead. Selecting a mark opens its details and draws a line to
+every record that references it or shares a reference (ticket keys, lesson IDs,
+canvas placements). That shows references, not causes. Keys: `+`/`-` zoom, arrows
+pan, `[`/`]` step through items, `F` fits, `N` centers on now. The view, grouping and
+hidden layers are kept in the URL. Lanes read the latest 100 tickets, lessons, audit
+events and canvases, up to 300 activity records and 300 commits, and refresh every
+30 seconds while visible. **List** keeps the chronology below.
+
 Timeline's **Decisions and effects** view paginates durable activity, with type and
 date filters before pagination. **Memory lifecycle** displays the existing latest
 100 audit events, including proposal/evaluation/publication/rejection and retrieval.
