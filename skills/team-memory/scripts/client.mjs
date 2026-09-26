@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
-import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { projectRoot, syncSkills } from "./skills.mjs";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// The team's hosted workspace. A local owner API needs TEAM_API_URL=http://127.0.0.1:4317.
+export const HOSTED_API_URL = "https://mongo-db-hackathon-xchange.vercel.app";
 export async function run(args = process.argv.slice(2), env = process.env, fetchImpl = fetch) {
   const [command, id, file, operation] = args;
-  const base = new URL(env.TEAM_API_URL || "http://127.0.0.1:4317");
+  const base = new URL(env.TEAM_API_URL || HOSTED_API_URL);
   if (base.username || base.password || base.search || base.hash || !["/", ""].includes(base.pathname)) throw new Error("TEAM_API_URL must be an origin without embedded credentials or query parameters.");
   if (base.protocol !== "https:" && !(base.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(base.hostname))) throw new Error("Use HTTPS for a remote API.");
   const token = env.TEAM_API_TOKEN;
-  if (!token) throw new Error("Configure TEAM_API_TOKEN privately before using this skill.");
+  if (!token) throw new Error("Configure TEAM_API_TOKEN privately before using this skill, for example in ~/.team-memory/credential.env.");
   const recordId = () => {
     if (!id || id.length > 100 || [".", ".."].includes(id) || /[\s/\\?#]/.test(id)) throw new Error("Provide a record ID, not a path or URL.");
     return encodeURIComponent(id);
@@ -65,7 +68,19 @@ export async function run(args = process.argv.slice(2), env = process.env, fetch
     default: throw new Error("Commands: access, memory, sync-skills [PROJECT_ROOT], harness, lesson ID, ticket ID, evaluations, audit, evaluate LESSON_ID EXPECTED_VERSION, rollback LESSON_ID EXPECTED_HARNESS_VERSION, catalog, create-ticket JSON_FILE OPERATION_UUID, canvases, schema, canvas UUID, write-canvas UUID JSON_FILE OPERATION_UUID, propose JSON_FILE [OPERATION_UUID], list-activity [QUERY], read-activity UUID, record-activity JSON_FILE OPERATION_UUID");
   }
 }
+// Settings missing from the environment come from the private credential file the Pi extension also reads:
+// TEAM_MEMORY_ENV, or ~/.team-memory/credential.env. Only these keys are read, so other values there stay unread.
+export function credentialSettings(env = process.env) {
+  let text;
+  try { text = readFileSync(env.TEAM_MEMORY_ENV?.trim() || join(homedir(), ".team-memory", "credential.env"), "utf8"); } catch { return {}; }
+  const settings = {};
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*(?:export\s+)?(TEAM_API_URL|TEAM_API_TOKEN|ENGINEER_ID)\s*=\s*(.*?)\s*$/.exec(line);
+    if (match && !env[match[1]]?.trim()) settings[match[1]] = match[2].replace(/^(["'])(.*)\1$/, "$2");
+  }
+  return settings;
+}
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
-  try { console.log(JSON.stringify(await run(), null, 2)); }
+  try { console.log(JSON.stringify(await run(process.argv.slice(2), { ...process.env, ...credentialSettings() }), null, 2)); }
   catch (error) { console.error(error instanceof Error && !["SyntaxError", "TypeError"].includes(error.name) ? error.message : "Invalid configuration or JSON input."); process.exitCode = 1; }
 }

@@ -87,9 +87,14 @@ checkouts too. Preparation does not activate access or contact MongoDB/Vercel.
 4. Transfer only the intended recipient's token or `credential.env` through your
    approved private secret-sharing channel. Retain grant metadata with the owner;
    keep tokens out of Git, chat, command arguments, screenshots and shared memory.
+   Send each person the file from their own output directory, never your own: its
+   holder acts under that identity and role.
 5. Verify access as below before recording that member as enrolled.
 
 ## Teammate: use the frontend
+
+The quickest setup is one command that saves your file and connects Claude Code; see
+[Work on the hosted workspace](../README.md#work-on-the-hosted-workspace).
 
 Open the canonical app URL; the workspace opens read-only. To make changes, choose
 **Sign in** in the top bar and paste your personal token. Sign-in establishes a
@@ -118,6 +123,12 @@ node --env-file=/absolute/private/agent-alex-pi/credential.env skills/team-memor
 node --env-file=/absolute/private/agent-alex-pi/credential.env skills/team-memory/scripts/client.mjs catalog
 node --env-file=/absolute/private/agent-alex-pi/credential.env skills/team-memory/scripts/client.mjs memory
 ```
+
+A person's own machine can instead keep the file at `~/.team-memory/credential.env`
+(mode `0600`). The client and the Pi extension read it when the variables are not set,
+and default to the hosted workspace. Claude Code and Codex can connect to the hosted
+`/mcp` endpoint with no local install; see
+[Work on the hosted workspace](../README.md#work-on-the-hosted-workspace).
 
 `access` must return `mode: "team"`, the expected `actorId`, role, and team/project
 scope. It performs no record writes. A 401 means an absent/invalid/revoked token;

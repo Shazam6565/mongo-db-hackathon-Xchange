@@ -49,7 +49,7 @@ ENGINEER_ID=your-name
 
 | Setting | Meaning |
 | --- | --- |
-| `TEAM_API_URL` | Team API origin. Must be HTTPS, except `http://127.0.0.1:4317` for a local owner API |
+| `TEAM_API_URL` | Team API origin. Defaults to the hosted workspace, `https://mongo-db-hackathon-xchange.vercel.app`. Must be HTTPS, except `http://127.0.0.1:4317` for a local owner API |
 | `TEAM_API_TOKEN` | Your personal team token. Required for a remote API |
 | `TEAM_TICKET` | Ticket to start each session on; change it with `/ticket` |
 | `ENGINEER_ID` | Label for a local owner API. Defaults to your OS user name. A hosted API ignores it and uses your token's identity |

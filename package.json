@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "description": "Shared, evidence-backed engineering lessons for independent Pi agents.",
-  "workspaces": ["apps/*", "packages/*"],
-  "engines": { "node": "22.x" },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "concurrently --kill-others -n api,dashboard -c green,cyan \"npm run dev:api\" \"npm run dev:dashboard\"",
     "dev:api": "npm run dev --workspace @team-memory/api",
@@ -13,16 +18,21 @@
     "evaluate": "npm run evaluate --workspace @team-memory/evaluator",
     "access:issue": "node --import tsx apps/api/src/access-cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test apps/api/src/*.test.ts apps/evaluator/src/*.test.ts packages/contracts/src/*.test.ts packages/pi-extension/src/*.test.ts skills/team-memory/scripts/*.test.mjs",
+    "test": "tsx --test apps/api/src/*.test.ts apps/evaluator/src/*.test.ts apps/mcp/src/*.test.ts packages/contracts/src/*.test.ts packages/pi-extension/src/*.test.ts skills/team-memory/scripts/*.test.mjs",
     "build": "npm run typecheck && npm run build --workspace @team-memory/dashboard",
     "skills:check": "node scripts/check-skills.mjs",
-    "check": "npm run skills:check && npm run test && npm run build",
+    "check": "npm run skills:check && npm run test && npm run build && npm run mcp:build && npm run plugin:check",
+    "mcp:build": "node --import tsx scripts/build-mcp.mjs",
+    "mcp:stdio": "node --import tsx apps/mcp/src/stdio.ts",
+    "mcp:check": "node --import tsx --test apps/mcp/src/*.test.ts",
+    "plugin:check": "node scripts/check-plugin.mjs",
     "seed": "npm run seed --workspace @team-memory/api --",
     "vector:setup": "npm run vector:setup --workspace @team-memory/api --"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
     "concurrently": "^9.2.1",
+    "esbuild": "^0.28.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }

@@ -1,0 +1,23 @@
+{
+  "name": "xchange",
+  "version": "0.1.0",
+  "description": "Use the Xchange project workspace for tickets, shared canvases, work evidence and active lessons.",
+  "author": {
+    "name": "Xchange maintainers"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Xchange",
+    "shortDescription": "Work with your team's shared project memory.",
+    "longDescription": "Read scoped project records and active lessons, create tickets, record evidence, revise canvases and propose lessons through the Xchange API. Requires an individual Xchange credential.",
+    "developerName": "Xchange maintainers",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Show where our Xchange project stands.",
+      "Turn these project hurdles into simple tickets and a canvas.",
+      "Record what we learned and propose a lesson with evidence."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

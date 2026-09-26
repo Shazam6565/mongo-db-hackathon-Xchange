@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { run } from "./client.mjs";
+import { credentialSettings, HOSTED_API_URL, run } from "./client.mjs";
 
 const env = { TEAM_API_URL: "https://team.example.test", TEAM_API_TOKEN: "synthetic-agent-token-00000000000000001" };
 const access = { mode: "team", actorId: "agent.alex.pi", role: "writer", scope: { teamId: "team-test", projectId: "project-test" } };
@@ -52,11 +52,28 @@ test("credentials are never sent to a remote HTTP origin or embedded-credential 
 
 test("the discoverable skill symlink still executes the client and fails closed without a token", () => {
   const result = spawnSync(process.execPath, [fileURLToPath(new URL("../../../.agents/skills/team-memory/scripts/client.mjs", import.meta.url)), "access"], {
-    env: { ...process.env, TEAM_API_TOKEN: "" }, encoding: "utf8",
+    // Keep a developer's own ~/.team-memory/credential.env out of the test.
+    env: { ...process.env, TEAM_API_TOKEN: "", TEAM_MEMORY_ENV: join(tmpdir(), "team-client-test-missing", "credential.env") }, encoding: "utf8",
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Configure TEAM_API_TOKEN privately/);
   assert.equal(result.stdout, "");
+});
+
+test("the hosted workspace is the default, and the credential file fills only unset keys", async () => {
+  assert.equal(HOSTED_API_URL, "https://mongo-db-hackathon-xchange.vercel.app");
+  await run(["access"], { TEAM_API_TOKEN: env.TEAM_API_TOKEN }, async (url) => {
+    assert.equal(url.href, `${HOSTED_API_URL}/v1/access`);
+    return Response.json(access);
+  });
+  const temporary = await mkdtemp(join(tmpdir(), "team-client-credential-"));
+  const file = join(temporary, "credential.env");
+  try {
+    await writeFile(file, ["# issued credential", "TEAM_API_URL=https://team.example.test", "export TEAM_API_TOKEN='file-token'", "MONGODB_URI=mongodb+srv://must-not-be-read"].join("\n"));
+    assert.deepEqual(credentialSettings({ TEAM_MEMORY_ENV: file }), { TEAM_API_URL: "https://team.example.test", TEAM_API_TOKEN: "file-token" });
+    assert.deepEqual(credentialSettings({ TEAM_MEMORY_ENV: file, TEAM_API_TOKEN: "env-token" }), { TEAM_API_URL: "https://team.example.test" });
+    assert.deepEqual(credentialSettings({ TEAM_MEMORY_ENV: join(temporary, "missing.env") }), {});
+  } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 
 test("operator commands preserve explicit versions, stay on scoped routes, and never retry denied writes", async () => {

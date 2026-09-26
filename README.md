@@ -16,6 +16,48 @@ For teammates and agents joining the shared workspace, start with
 permissions, browser sign-in, agent read/write commands, rotation and revocation.
 The maintained [project operating skills](skills/README.md) cover access, records,
 canvases, memory, evaluation, data setup and hosting, discoverable from a fresh clone.
+For Codex and Phoenix MCP, use the [Xchange plugin and integration guide](docs/mcp-plugin.md).
+The repo owns the portable plugin, 14 typed tools, stdio bundle and authenticated
+`/mcp` endpoint; installation and Phoenix credential/grant binding are separate.
+
+## Work on the hosted workspace
+
+The team shares one hosted backend: **<https://mongo-db-hackathon-xchange.vercel.app>**.
+It owns the Atlas data, so nothing has to run on your machine and you do not need `npm`.
+
+1. **Get your own `credential.env`** from the workspace owner, for example by AirDrop.
+   Never use someone else's: everything you do is recorded under its name.
+2. **Connect Claude Code with one command.** It moves the file from Downloads to
+   `~/.team-memory/credential.env`, where the team tools look for it, and adds the hosted
+   MCP server:
+
+   ```bash
+   mkdir -p ~/.team-memory && mv ~/Downloads/credential.env ~/.team-memory/ && chmod 600 ~/.team-memory/credential.env && claude mcp add --transport http --scope user xchange https://mongo-db-hackathon-xchange.vercel.app/mcp --header "Authorization: Bearer $(grep '^TEAM_API_TOKEN=' ~/.team-memory/credential.env | cut -d= -f2-)" && claude mcp list | grep xchange
+   ```
+
+   It should end with `xchange: … ✔ Connected`, which also proves your token works. Then
+   start a new Claude Code session: its `xchange_access` tool shows your name and role.
+   If you received the file as text, copy it and replace `mv ~/Downloads/credential.env ~/.team-memory/`
+   with `pbpaste > ~/.team-memory/credential.env`.
+3. **Browser.** Open the URL; anyone can view. To make changes, choose **Sign in** and paste
+   your token. This copies it without showing it:
+   `grep '^TEAM_API_TOKEN=' ~/.team-memory/credential.env | cut -d= -f2- | tr -d '\n' | pbcopy`
+
+Other agents read the same file:
+
+- **Codex:** run `codex mcp add xchange --url https://mongo-db-hackathon-xchange.vercel.app/mcp --bearer-token-env-var TEAM_API_TOKEN`
+  once, then start Codex with `(set -a; . ~/.team-memory/credential.env; codex)`.
+- **Pi:** in a checkout, run `npm ci` once, then `pi install ./packages/pi-extension`. See the
+  [Pi extension guide](packages/pi-extension/README.md).
+- **Any agent or script:** `node skills/team-memory/scripts/client.mjs access` from a checkout
+  needs only Node 22. It must report `mode: "team"` with your own name and role.
+
+To work on the dashboard with shared data, run only the frontend against the hosted API:
+`(set -a; . ~/.team-memory/credential.env; TEAM_API_URL=https://mongo-db-hackathon-xchange.vercel.app npm run dev:dashboard)`.
+Changes you make there are real and are attributed to your token.
+
+Run a local API only to change API code. Leave `MONGODB_URI` empty so it uses disposable
+in-memory data: only the hosted deployment should write to the shared Atlas database.
 
 ## Repository status
 
@@ -38,6 +80,7 @@ This is a **runnable skeleton, not the finished learning system**.
 | Live synchronization through Change Streams and SSE | Design only; refresh is currently per run/manual |
 | Individual team grants, roles and browser sessions | Implemented with local security checks; real member enrollment pending |
 | Private credential issuance and authenticated access checks | Implemented; run `npm run access:issue -- --help` and follow the onboarding guide |
+| OpenAI-compatible plugin and MCP tools | Implemented and locally verified; [package and Phoenix setup](docs/mcp-plugin.md) |
 | Vercel live UI and server API | Deployment configuration implemented; remote deployment and Atlas route unverified |
 
 No LLM calls or paid cloud resources are created by `npm run dev` or `npm run evaluate`. The single published lesson
@@ -46,7 +89,10 @@ through `POST /v1/lessons` creates a **candidate**. Pi agents instead share thro
 which publishes immediately with no evaluation (audited as `lesson.published`). `POST /v1/lessons/:id/evaluate` scores a candidate
 against `evals/triage-suite.json` and publishes only when the gate passes for the expected version.
 
-## Quick start
+## Local development (npm)
+
+Use this to change the API or dashboard code. To use the shared workspace, see
+[Work on the hosted workspace](#work-on-the-hosted-workspace) instead.
 
 Prerequisites: **Node.js 22.19+** and npm. Use the latest Node 22 LTS release if possible.
 
