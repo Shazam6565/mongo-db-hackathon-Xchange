@@ -13,6 +13,7 @@
 .team-auth button:disabled, .team-session-bar button:disabled { opacity: .55; cursor: default; }
 .team-auth :focus-visible, .team-session-bar :focus-visible { outline: 2px solid #4d826b; outline-offset: 3px; }
 .team-auth [role=alert], .team-session-bar [role=alert] { color: #9d3934; }
+.team-auth .team-auth-back { margin-top: 20px; }
 .team-session-bar { min-height: 32px; padding: 3px 24px; display: flex; align-items: center; justify-content: end; flex-wrap: wrap; gap: 8px 16px; border-bottom: 1px solid #e5e8e6; font-size: 11px; }
 .team-session-bar > span { overflow-wrap: anywhere; min-width: 0; }
 .team-session-role { color: #6c7470; }

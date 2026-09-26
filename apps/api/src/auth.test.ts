@@ -40,13 +40,13 @@ test("sessions require same-origin login, expire, reject tampering, and clear se
     assert.deepEqual(login.json(), { authenticated: true, mode: "team", actorId: "engineer-a", role: "writer" });
     assert.ok(!login.body.includes(token));
     const setCookie = login.headers["set-cookie"] as string;
-    for (const flag of ["HttpOnly", "Secure", "SameSite=Strict", "Path=/", "Max-Age=28800"]) assert.ok(setCookie.includes(flag));
+    for (const flag of ["HttpOnly", "Secure", "SameSite=Strict", "Path=/", "Max-Age=2592000"]) assert.ok(setCookie.includes(flag));
     const cookie = cookieFrom(login.headers);
     assert.equal((await app.inject({ url: "/session", headers: { cookie } })).json().actorId, "engineer-a");
     assert.equal((await app.inject({ url: "/session", headers: { cookie, authorization: "Bearer invalid" } })).json().authenticated, false);
     assert.equal((await app.inject({ url: "/session", headers: { cookie: `${cookie}corrupt` } })).json().authenticated, false);
     assert.equal((await app.inject({ url: "/session", headers: { cookie: `${cookie}; ${cookie}` } })).json().authenticated, false);
-    now += 8 * 60 * 60 * 1000;
+    now += 30 * 24 * 60 * 60 * 1000;
     assert.equal((await app.inject({ url: "/session", headers: { cookie } })).json().authenticated, false);
     assert.equal((await app.inject({ method: "DELETE", url: "/session", headers: { cookie } })).statusCode, 403);
     const logout = await app.inject({ method: "DELETE", url: "/session", headers: { cookie, origin: config.publicOrigin } });

@@ -4,7 +4,7 @@ import type { Lesson } from "@team-memory/contracts";
 import { HarnessStateSchema, type HarnessState, type HarnessVersionRecord } from "../../../../packages/contracts/src/harness.js";
 import { AppFrame } from "../AppFrame.js";
 import { errorMessage, HealthResponse, LessonsResponse, request } from "../catalog/api.js";
-import { useSession } from "../auth/SessionContext.js";
+import { canEvaluate, useSession } from "../auth/SessionContext.js";
 import "../catalog/catalog.css";
 import "../activity/activity.css";
 
@@ -13,7 +13,7 @@ const lessonLink = (id: string) => `/?item=${encodeURIComponent(`lesson:${id}`)}
 export function Harness() {
   const session = useSession();
   // Mirrors the API: rollback is evaluator-only on the hosted API; the local owner may roll back.
-  const canRollback = session.mode === "local" || session.role === "evaluator";
+  const canRollback = canEvaluate(session);
   const [state, setState] = useState<HarnessState>(), [lessons, setLessons] = useState<Map<string, Lesson>>(new Map());
   const [health, setHealth] = useState<z.infer<typeof HealthResponse>>();
   const [loading, setLoading] = useState(false), [pending, setPending] = useState(""), [error, setError] = useState("");

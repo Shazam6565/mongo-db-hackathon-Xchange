@@ -46,6 +46,7 @@ Configure these server-only variables in the correct Vercel project/environment:
 | `TEAM_PUBLIC_ORIGIN` | Exact canonical HTTPS app origin; other aliases cannot establish browser sessions |
 | `TEAM_SESSION_SECRET` | Privately generated random session signing secret, at least 32 characters |
 | `TEAM_ACCESS_GRANTS` | JSON array of `{ "actorId": "member-name", "tokenHash": "<sha256 hex>", "role": "writer" }` |
+| `TEAM_GUEST_READ` | Optional. Exactly `true` lets anyone with the link read the workspace without a token; writes, memory and `/v1/access` still need one |
 | `MONGODB_LABEL` | Optional safe display label, e.g. `MongoDB Sandbox` |
 
 Hosted storage always requires MongoDB. Missing configuration returns a redacted 503;
@@ -61,7 +62,7 @@ the fixed-suite publication endpoint. Activity/canvas/memory actor identity and
 candidate authors are derived from the authenticated grant. Ticket records retain
 their existing schema without an author field. Stored free text is never authority.
 
-Browser login exchanges a member token for an eight-hour Secure, HttpOnly,
+Browser login exchanges a member token for a 30-day Secure, HttpOnly,
 SameSite=Strict cookie. Cookie writes require the exact configured Origin. Tokens
 are not persisted in browser storage. Removing a grant and redeploying invalidates
 its tokens and sessions on the updated deployment; retire older deployments if
@@ -78,9 +79,11 @@ This function does not host a persistent background agent or evaluation worker.
 1. Inspect the existing Vercel project's Git repository, production branch, root,
    build command and deployed SHA; it must include this implementation. Check the
    actual function build, including workspace TypeScript dependency tracing.
-2. Confirm the canonical URL opens the compact team sign-in, then Catalog after
-   login; exercise Canvas and Timeline deep links. No hero or preview banner.
-3. Check `/health` reports MongoDB. Anonymous `/v1/activity` must return 401; neither
+2. Confirm the canonical URL opens Catalog (read-only when `TEAM_GUEST_READ=true`,
+   otherwise the compact team sign-in), and that **Sign in** unlocks writes; exercise
+   Canvas and Timeline deep links. No hero or preview banner.
+3. Check `/health` reports MongoDB. Anonymous `/v1/access` and anonymous writes must
+   return 401; anonymous `/v1/activity` returns 200 only with guest reading on. No
    endpoint should return HTML. A homepage alone proves no database connection.
 4. Use two separately issued writer tokens on two clients. One creates a clearly
    marked connection-check ticket; the other reads it. Reverse roles for an activity

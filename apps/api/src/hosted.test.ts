@@ -26,6 +26,10 @@ test("hosted configuration fails closed without explicit MongoDB, scope and team
   assert.throws(() => loadHostedConfig({ ...configured, STORAGE_MODE: "memory" }));
   assert.throws(() => loadHostedConfig({ ...configured, TEAM_PUBLIC_ORIGIN: "http://team.example.test" }));
   assert.equal(loadHostedConfig(configured).settings.token, "");
+  // Guest reading is opt-in; only the exact value "true" enables it.
+  assert.equal(loadHostedConfig(configured).teamAuth.guestRead, false);
+  assert.equal(loadHostedConfig({ ...configured, TEAM_GUEST_READ: "yes" }).teamAuth.guestRead, false);
+  assert.equal(loadHostedConfig({ ...configured, TEAM_GUEST_READ: "true" }).teamAuth.guestRead, true);
 });
 
 test("Vercel transport preserves routing, filters, cookies and API errors", async () => {

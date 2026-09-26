@@ -4,9 +4,10 @@ import { z } from "zod";
 
 export type TeamRole = "reader" | "writer" | "evaluator";
 export interface TeamAuthGrant { actorId: string; tokenHash: string; role: TeamRole }
-export interface TeamAuthConfig { grants: TeamAuthGrant[]; sessionSecret: string; publicOrigin: string }
+// guestRead lets anyone read the shared scope without a token; every write still needs a credential.
+export interface TeamAuthConfig { grants: TeamAuthGrant[]; sessionSecret: string; publicOrigin: string; guestRead?: boolean }
 export interface TeamPrincipal { actorId: string; role: TeamRole; via: "bearer" | "cookie" }
-export interface SessionUser { authenticated: boolean; mode: "team" | "local"; actorId?: string; role?: TeamRole }
+export interface SessionUser { authenticated: boolean; mode: "team" | "local"; actorId?: string; role?: TeamRole; guestRead?: boolean }
 
 const grantSchema = z.object({
   actorId: z.string().regex(/^[\w.-]{1,100}$/),
@@ -17,12 +18,15 @@ const configSchema = z.object({
   grants: z.array(grantSchema).min(1).max(100),
   sessionSecret: z.string().min(32).max(512),
   publicOrigin: z.string().max(500),
+  guestRead: z.boolean().optional(),
 }).strict();
 const tokenSchema = z.string().min(32).max(1024).regex(/^[\x21-\x7e]+$/);
 const loginSchema = z.object({ token: tokenSchema }).strict();
 const cookieName = "__Host-team-memory-session";
-const sessionSeconds = 8 * 60 * 60;
+const sessionSeconds = 30 * 24 * 60 * 60;
 const cookieFlags = "Path=/; HttpOnly; Secure; SameSite=Strict";
+// Guests may not call routes that report an identity or record who retrieved lessons.
+const credentialedReads = new Set(["/v1/access", "/v1/memory", "/v1/harness/active"]);
 
 /** Validate server-only configuration without including supplied values in errors. */
 export function validateTeamAuthConfig(input: unknown): TeamAuthConfig {
@@ -45,9 +49,6 @@ function equal(a: string, b: string): boolean {
   const first = Buffer.from(a), second = Buffer.from(b);
   return first.length === second.length && timingSafeEqual(first, second);
 }
-function sessionUser(principal: TeamPrincipal | null): SessionUser {
-  return principal ? { authenticated: true, mode: "team", actorId: principal.actorId, role: principal.role } : { authenticated: false, mode: "team" };
-}
 function readCookie(request: FastifyRequest): string | null {
   const matches = (request.headers.cookie ?? "").split(";").map(part => part.trim()).filter(part => part.startsWith(`${cookieName}=`));
   return matches.length === 1 ? matches[0]!.slice(cookieName.length + 1) : null;
@@ -55,6 +56,10 @@ function readCookie(request: FastifyRequest): string | null {
 
 export function createTeamAuthentication(input: TeamAuthConfig, now: () => number = Date.now) {
   const config = validateTeamAuthConfig(input);
+  function sessionUser(principal: TeamPrincipal | null): SessionUser {
+    const guest = config.guestRead ? { guestRead: true } : {};
+    return principal ? { authenticated: true, mode: "team", actorId: principal.actorId, role: principal.role, ...guest } : { authenticated: false, mode: "team", ...guest };
+  }
   function byHash(hash: string) { return config.grants.find(grant => equal(grant.tokenHash, hash)) ?? null; }
   function byToken(token: string) { return tokenSchema.safeParse(token).success ? byHash(hashTeamToken(token)) : null; }
   function sign(payload: string) { return createHmac("sha256", config.sessionSecret).update(payload).digest("base64url"); }
@@ -82,6 +87,11 @@ export function createTeamAuthentication(input: TeamAuthConfig, now: () => numbe
     } catch { return null; }
   }
   function sameOrigin(request: FastifyRequest): boolean { return request.headers.origin === config.publicOrigin; }
+  // A supplied bearer credential that fails is rejected rather than downgraded to guest access.
+  function admitsGuest(request: FastifyRequest): boolean {
+    return config.guestRead === true && request.headers.authorization === undefined && (request.method === "GET" || request.method === "HEAD")
+      && !credentialedReads.has(request.routeOptions.url ?? "");
+  }
   function permits(principal: TeamPrincipal, method: string, evaluatorOnly = false): boolean {
     if (evaluatorOnly) return principal.role === "evaluator";
     return ["GET", "HEAD", "OPTIONS"].includes(method) || principal.role !== "reader";
@@ -89,7 +99,7 @@ export function createTeamAuthentication(input: TeamAuthConfig, now: () => numbe
   function registerSessions(app: FastifyInstance) {
     app.get("/session", async request => sessionUser(authenticate(request)));
     app.post("/session", { bodyLimit: 2048 }, async (request, reply) => {
-      if (!sameOrigin(request)) return reply.code(403).send({ error: "Sign in from the configured application origin." });
+      if (!sameOrigin(request)) return reply.code(403).send({ error: `Sign in at ${config.publicOrigin}.` });
       const parsed = loginSchema.safeParse(request.body);
       if (!parsed.success) return reply.code(400).send({ error: "Provide a valid team access token." });
       const grant = byToken(parsed.data.token);
@@ -98,10 +108,10 @@ export function createTeamAuthentication(input: TeamAuthConfig, now: () => numbe
       return sessionUser({ ...grant, via: "cookie" });
     });
     app.delete("/session", async (request, reply) => {
-      if (!sameOrigin(request)) return reply.code(403).send({ error: "Sign out from the configured application origin." });
+      if (!sameOrigin(request)) return reply.code(403).send({ error: `Sign out at ${config.publicOrigin}.` });
       reply.header("set-cookie", `${cookieName}=; ${cookieFlags}; Max-Age=0`);
       return sessionUser(null);
     });
   }
-  return { authenticate, sameOrigin, permits, registerSessions };
+  return { authenticate, sameOrigin, admitsGuest, permits, registerSessions };
 }

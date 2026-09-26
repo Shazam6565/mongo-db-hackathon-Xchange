@@ -65,7 +65,10 @@ export function buildApp(options: AppOptions) {
     api.addHook("onRequest", async (request, reply) => {
       if (teamAuth) {
         const principal = teamAuth.authenticate(request);
-        if (!principal) return reply.code(401).send({ error: "Sign in with a valid team access token." });
+        if (!principal) {
+          if (teamAuth.admitsGuest(request)) { request.headers[ENGINEER_ID_HEADER] = "guest"; return; }
+          return reply.code(401).send({ error: "Sign in with a valid team access token." });
+        }
         if (principal.via === "cookie" && !["GET", "HEAD", "OPTIONS"].includes(request.method) && !teamAuth.sameOrigin(request)) {
           return reply.code(403).send({ error: "State-changing requests must originate from this application." });
         }

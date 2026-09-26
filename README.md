@@ -180,7 +180,8 @@ infra/
 
 Locally, `/v1` endpoints require `Authorization: Bearer <TEAM_API_TOKEN>` and labels are
 self-reported. Hosted mode instead requires an individual member bearer token or a signed
-browser session. It derives actor identity and reader/writer/evaluator authority from
+browser session; with `TEAM_GUEST_READ=true`, record reads also work without one, while
+writes, memory and `/v1/access` still need it. It derives actor identity and reader/writer/evaluator authority from
 server-configured grants. Both modes assign team/project scope and candidate status on
 the server. Hosted `/session` supports GET (status), POST (sign in), DELETE (sign out).
 
