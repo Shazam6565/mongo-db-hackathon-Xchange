@@ -12,7 +12,7 @@ The contextual inspector edits note text, color and position, or adds/removes la
 
 ### Saving, leaving and conflicts
 
-The shared copy changes only on Save. Until then, edits are kept in this browser (local storage, per project and canvas), so leaving the canvas, following a record link or closing the tab never loses them and never asks first. Reopening the canvas restores the draft and says so; Discard asks once, then returns to the saved revision and removes the kept copy. The status next to the title says whether the canvas is saved, unsaved and kept, or unsaved and at risk. If this browser cannot keep drafts (for example storage is blocked), leaving asks whether to save, stay or leave without saving.
+The shared copy changes only on Save. Until then, edits are kept in this browser (local storage, per project and canvas), so leaving the canvas, following a record link or closing the tab never loses them and never asks first. Reopening the canvas restores the draft and says so; Discard, offered only while there are unsaved changes, asks once, then returns to the saved revision and removes the kept copy. The status next to the title says whether the canvas is saved, unsaved and kept, or unsaved and at risk. If this browser cannot keep drafts (for example storage is blocked), leaving asks whether to save, stay or leave without saving.
 
 Saves include an expected revision and an operation UUID. The API performs an atomic comparison before updating, so concurrent writers cannot silently overwrite each other, and an identical retry of the latest operation returns the prior result. When a save loses that race (409), the browser loads the latest revision and combines both sets of changes by node and connection ID:
 
@@ -20,7 +20,7 @@ Saves include an expected revision and an operation UUID. The API performs an at
 - When both sides changed the same item differently, the draft's version is kept and the item is named in a notice.
 - An item one side removed and the other edited is kept, so nobody's edit disappears; connections whose placements are gone are dropped.
 
-If nothing overlapped, the combined canvas is saved immediately as the next revision. Otherwise it stays as a draft for review. Refresh uses the same combination instead of refusing while there are unsaved changes. A network failure, timeout or storage outage keeps the draft and offers Save again; a 403 switches the canvas to view-only and keeps the draft in the browser. Validation runs before sending and names the problem, highlighting the card that needs a title or refers to a record that is no longer in the project. Download JSON exports the draft in the agent `write-canvas` format. There is still no live collaboration stream; use Refresh to see new agent edits.
+If nothing overlapped, the combined canvas is saved immediately as the next revision. Otherwise it stays as a draft for review. Refresh, in the footer, uses the same combination instead of refusing while there are unsaved changes. A network failure, timeout or storage outage keeps the draft and offers Save again; a 403 switches the canvas to view-only and keeps the draft in the browser. Validation runs before sending and names the problem, highlighting the card that needs a title or refers to a record that is no longer in the project. Download JSON exports the draft in the agent `write-canvas` format. There is still no live collaboration stream; use Refresh to see new agent edits.
 
 ## Writing canvases
 
