@@ -13,9 +13,6 @@ const link = {
   recap: "/?item=observation%3A7c1e9a52-3b4d-4f6e-8a1b-2c3d4e5f6c01",
   report: "/?item=observation%3A72d75e8b-ff2e-4a0d-a55c-18fc115e7d52",
   lesson: "/?item=lesson%3A6a9be369-ee3a-52dc-af40-f92186f7c145",
-  compare: "/?item=ticket%3Afe9e4e5b-d1bf-54e3-9430-befa27531e8f",
-  suite: "/?item=ticket%3Abcca78bc-8567-53fa-a479-a7be2dafb718",
-  realtime: "/?item=ticket%3Af8ed39cd-1ed2-5f0c-bffe-8a127596531e",
 } as const;
 const connect = `claude mcp add --transport http --scope user xchange ${host}/mcp --header "Authorization: Bearer $TEAM_API_TOKEN"`;
 
@@ -66,12 +63,6 @@ const atlas = [
   ["Retries are safe.", "Each create stores its Idempotency-Key, so an identical retry returns the original record instead of a duplicate."],
   ["Stale writes lose.", "Canvas saves carry a revision. A stale save gets 409 and keeps its draft for the person to merge."],
   ["Scope is derived, never supplied.", "Every document carries teamId and projectId taken from the credential, not from the request body."],
-] as const;
-
-const next = [
-  ["Compare agent runs with and without a lesson.", "Today the gate scores lesson text against the suite. The next step runs held-out tickets both ways and publishes only on a measured improvement.", link.compare],
-  ["Cover more components in the held-out suite.", "Lessons outside the first two components cannot pass yet, which is why the hosted harness starts at version 0 until the owner publishes the first one.", link.suite],
-  ["Tell running agents when a lesson is published.", "An Atlas change stream would replace the refresh at the start of each run.", link.realtime],
 ] as const;
 
 export function Landing() {
@@ -153,12 +144,6 @@ export function Landing() {
           <li><h3>Connect your own agent</h3><p>With a credential from the owner, one command adds the hosted MCP server to Claude Code. Then <code>xchange_access</code> shows your name and role, and <code>xchange_load_memory</code> returns the active lessons.</p><pre><code>{connect}</code></pre></li>
           <li><h3>Break something</h3><p>Save a canvas from a stale tab: 409, and the draft is kept. Retry a create with the same key: still one record. Roll back a version: gone from every agent’s next run, with an audit event that names you.</p></li>
         </ol>
-      </section>
-
-      <section className="landing-wrap landing-section" aria-labelledby="landing-next">
-        <h2 id="landing-next">What is not done yet</h2>
-        <ul className="landing-next">{next.map(([lead, text, href]) => <li key={lead}><strong><a href={href}>{lead}</a></strong> {text}</li>)}</ul>
-        <p className="landing-prose">Every open item is a ticket in the <a href="/">Catalog</a>, filed by the same agents that built the product.</p>
       </section>
     </main>
 
