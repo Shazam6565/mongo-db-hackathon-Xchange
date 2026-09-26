@@ -9,13 +9,15 @@ Planned collections:
 
 | Collection | Contents |
 | --- | --- |
-| `lessons` | Lesson text, scope, applicability, evidence references, status, version, embedding |
-| `evaluations` | Fixed-suite baseline/candidate scores, regression results, evaluator identity |
+| `lessons` | Lesson text, scope, applicability, evidence references, status, version. Embedding is planned |
+| `evaluations` | Fixed-suite baseline/candidate scores, case results, regressions, evaluator identity |
 | `harness_versions` | Versioned instructions, registered-tool presets, verification steps |
-| `audit_events` | Proposal, evaluation, promotion, rollback, and consumption events |
+| `audit_events` | Proposal, evaluation, publication, rejection, and consumption events |
 
-Only `lessons` is implemented. The contract types for evaluations and harness versions are
-design placeholders, not proof of implemented persistence or rollout.
+`lessons`, `evaluations`, and `audit_events` are written by the API. Publication of a lesson,
+its evaluation, and its audit events uses one MongoDB transaction, which needs a replica set.
+`harness_versions` remains a design placeholder: a published lesson does not activate tools or
+instructions inside Pi.
 
 ## Vector Search — planned
 

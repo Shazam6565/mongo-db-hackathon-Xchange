@@ -24,16 +24,17 @@ This is a **runnable skeleton, not the finished learning system**.
 | Pi `/team-memory`, `/share-lesson`, and context injection | Starter implementation |
 | Local `.team-memory/MEMORY.md` generated from published lessons | Starter implementation |
 | Automatic extraction of lessons from agent failures | Planned |
-| Baseline/candidate evaluations and publication gate | Interface + fixtures only |
+| Baseline/candidate evaluations and publication gate | Fixed-suite scorer with version-checked publish/reject. No model calls |
 | Harness configuration rollout, rollback, and audit history | Contract/design only |
 | Semantic retrieval / embedding generation / Atlas Vector Search | Adapter interface only |
 | Live synchronization through Change Streams and SSE | Design only; refresh is currently per run/manual |
 | Jira integration | Adapter interface only |
 | Per-user authentication, membership, and remote deployment | Planned; current services bind to loopback |
 
-No LLM calls or paid cloud resources are created by `npm run dev`. The single published lesson
+No LLM calls or paid cloud resources are created by `npm run dev` or `npm run evaluate`. The single published lesson
 in memory mode is synthetic demo data, explicitly marked `origin: demo`. Submitting a lesson
-creates a **candidate**; it cannot self-publish. There is no promotion endpoint yet.
+creates a **candidate**; it cannot self-publish. `POST /v1/lessons/:id/evaluate` scores that candidate
+against `evals/triage-suite.json` and publishes only when the gate passes for the expected version.
 
 ## Quick start
 
@@ -63,7 +64,7 @@ The MongoDB adapter starts empty and creates only ordinary collection indexes. S
 ```bash
 npm run dev:api          # API only
 npm run dev:dashboard    # UI only
-npm run evaluate         # Prints evaluator scaffold status; does not score or publish
+npm run evaluate         # Prints the fixed suite identity; does not score or publish
 npm run check            # Tests, TypeScript checks, and dashboard production build
 ```
 
@@ -149,10 +150,13 @@ not an authenticated identity. The API assigns scope and initial candidate statu
 
 | Method | Route | Behavior |
 | --- | --- | --- |
-| GET | `/health` | Health, storage mode, and skeleton stage |
+| GET | `/health` | Health, storage mode, evaluator version, and suite version |
 | GET | `/v1/lessons` | Up to 100 recent scoped lessons, including candidates |
-| GET | `/v1/memory` | Up to 10 recent published scoped lessons; no semantic ranking yet |
+| GET | `/v1/memory` | Up to 10 recent published lessons. Records `x-engineer-id` and the returned lesson versions. No semantic ranking yet |
 | POST | `/v1/lessons` | Validate and persist a candidate; cannot publish |
+| POST | `/v1/lessons/:id/evaluate` | Score a candidate against the fixed suite. Body: `{ "expectedVersion": 1 }`. Publishes or rejects only when that version still matches |
+| GET | `/v1/evaluations` | Recent fixed-suite scores for this scope. Expected answers are not included |
+| GET | `/v1/audit` | Proposal, evaluation, publication, rejection, and memory-consumption events |
 
 ```bash
 curl http://127.0.0.1:4317/v1/memory \
@@ -162,6 +166,15 @@ curl http://127.0.0.1:4317/v1/lessons \
   -H 'Authorization: Bearer local-demo-token' \
   -H 'Content-Type: application/json' \
   --data-binary @examples/lesson-candidate.json
+```
+
+Publish uses the returned candidate id and version:
+
+```bash
+curl http://127.0.0.1:4317/v1/lessons/LESSON_ID/evaluate \
+  -H 'Authorization: Bearer local-demo-token' \
+  -H 'Content-Type: application/json' \
+  --data '{"expectedVersion":1}'
 ```
 
 ## The intended learning loop
@@ -180,7 +193,7 @@ proof that a lesson passed evaluation.
 
 ## Suggested implementation order
 
-1. Implement a fixed evaluator and evidence-backed promotion, including a negative control.
+1. Fixed evaluator and negative-control gate — implemented for `evals/triage-suite.json`. Live model trials are still open.
 2. Extract candidates from Pi tool results and engineer corrections.
 3. Add Atlas Vector Search and context budgets with component/version applicability checks.
 4. Add versioned harness updates, rollback, and consumption logs.

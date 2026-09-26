@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": "./src/index.ts",
   "scripts": { "evaluate": "tsx src/index.ts" },
-  "dependencies": { "@team-memory/contracts": "0.1.0" }
+  "dependencies": { "@team-memory/contracts": "0.1.0", "zod": "^4.1.12" }
 }

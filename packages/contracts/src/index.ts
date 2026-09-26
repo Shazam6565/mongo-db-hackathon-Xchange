@@ -44,22 +44,72 @@ export const MemorySnapshotSchema = z.object({
   fetchedAt: z.string().datetime(),
 });
 
+export const EvaluateRequestSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+}).strict();
+
+export const ENGINEER_ID_HEADER = "x-engineer-id";
+
+const ENGINEER_ID_PATTERN = /^[\w.-]{1,100}$/;
+
+export function engineerIdFromHeader(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) return "unspecified";
+  const trimmed = raw.trim();
+  return ENGINEER_ID_PATTERN.test(trimmed) ? trimmed : "unspecified";
+}
+
 export type Scope = z.infer<typeof ScopeSchema>;
 export type CandidateInput = z.infer<typeof CandidateInputSchema>;
 export type Lesson = z.infer<typeof LessonSchema>;
 export type MemorySnapshot = z.infer<typeof MemorySnapshotSchema>;
+export type EvaluateRequest = z.infer<typeof EvaluateRequestSchema>;
 
-// Planned storage contracts. No promotion endpoint exists in this starter.
-export interface EvaluationResult {
+export interface LessonVersionRef {
   id: string;
-  lessonId: string;
-  candidateVersion: number;
+  version: number;
+}
+
+export interface EvaluationCaseResult {
+  caseId: string;
+  ticketKey: string;
+  applied: boolean;
+  component: string | null;
+  componentCorrect: boolean;
+  checksCovered: number;
+  checksTotal: number;
+}
+
+export interface EvaluationScores {
   suiteVersion: string;
   evaluatorVersion: string;
   baselineScore: number;
   candidateScore: number;
   regressions: string[];
   decision: "publish" | "reject" | "needs-review";
+  cases: EvaluationCaseResult[];
+}
+
+export interface EvaluationResult extends EvaluationScores {
+  id: string;
+  teamId: string;
+  projectId: string;
+  lessonId: string;
+  candidateVersion: number;
+  createdAt: string;
+}
+
+export interface AuditEvent {
+  id: string;
+  teamId: string;
+  projectId: string;
+  kind: "lesson.proposed" | "lesson.evaluated" | "lesson.published" | "lesson.rejected" | "memory.consumed";
+  lessonId: string | null;
+  lessonVersion: number | null;
+  actorId: string;
+  at: string;
+  summary: string;
+  consumed?: LessonVersionRef[];
 }
 
 export interface HarnessVersion extends Scope {
@@ -70,6 +120,9 @@ export interface HarnessVersion extends Scope {
   change: z.infer<typeof HarnessChangeSchema>;
   status: "candidate" | "active" | "retired";
 }
+
+// Harness activation remains a design contract. Publication records the lesson;
+// it does not install instructions, tools, or verification steps into Pi.
 
 export function renderMemory(snapshot: MemorySnapshot): string {
   const lines = [

@@ -18,6 +18,8 @@ button { background: #183d31; color: #f5f7ef; border: 0; border-radius: 8px; pad
 .card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; color: #7c887d; } .badge { color: #376545; border-radius: 4px; padding: 5px 8px; background: #e3efdc; text-transform: uppercase; font-size: 9px; letter-spacing: .07em; font-weight: 700; }
 h3 { font-size: 20px; line-height: 1.4; letter-spacing: -.03em; margin: 21px 0 12px; font-weight: 600; } article p { font-size: 13px; line-height: 1.7; color: #68776b; }
 .demo-note { color: #936d33; background: #faf2df; padding: 9px 11px; border-radius: 5px; font-size: 11px; }
+.eval-note { color: #376545; font-size: 12px; }
+button.slim { margin: 4px 0 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0; } .chips span { padding: 4px 7px; border: 1px solid #dee5d9; border-radius: 4px; font-size: 10px; color: #6c7a6c; }
 details { border-top: 1px solid #e5e9df; padding-top: 16px; font-size: 12px; } summary { cursor: pointer; color: #45634b; } details li { line-height: 1.7; color: #697768; margin: 8px 0; } details ul { padding-left: 18px; }
 .error { padding: 15px; background: #f7e5dc; border-radius: 8px; color: #883b22; }

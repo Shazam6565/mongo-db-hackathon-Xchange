@@ -10,9 +10,23 @@
 6. Refresh the dashboard. The new record is a candidate.
 7. Refresh team memory. The candidate is deliberately absent because evaluation/publishing is not implemented.
 
-This checks the proposal/read plumbing without claiming the learning loop is finished. With
-MongoDB enabled, candidates survive API restarts; the database starts empty, so there is initially
-no published memory. The repository does not include an unsafe manual self-publish shortcut.
+This checks the proposal/read plumbing. With MongoDB enabled, candidates survive API restarts;
+the database starts empty, so there is initially no published memory. A candidate cannot set its
+own status. Publication happens only through the evaluation route below.
+
+## Fixed-suite gate
+
+1. Submit `examples/lesson-candidate.json`. It stays a candidate, so `/v1/memory` and a refreshed
+   `MEMORY.md` omit it.
+2. `POST /v1/lessons/:id/evaluate` with `{ "expectedVersion": 1 }`. The event-redelivery ticket
+   passes and the UI-only duplicate stays out of scope. The lesson becomes `published`, and
+   `/v1/memory` includes it.
+3. Submit the same lesson with `frontend` added to `appliesTo`. Evaluation rejects it. Team memory
+   still contains only the published lesson.
+4. Fetch `/v1/memory` with header `x-engineer-id: engineer-b`. `/v1/audit` records that engineer
+   and the published lesson version. A mismatched `expectedVersion` leaves the candidate unchanged.
+
+The dashboard Evaluate button calls the same route. Scores are from the fixed suite, not a live model.
 
 ## Target hackathon demonstration
 

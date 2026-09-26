@@ -2,7 +2,7 @@ import { mkdir, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { MemorySnapshotSchema, renderMemory, type CandidateInput } from "@team-memory/contracts";
+import { ENGINEER_ID_HEADER, MemorySnapshotSchema, renderMemory, type CandidateInput } from "@team-memory/contracts";
 
 const CUSTOM_TYPE = "team-memory-snapshot";
 
@@ -13,7 +13,12 @@ export default function teamMemoryExtension(pi: ExtensionAPI) {
   async function api(path: string, body?: unknown): Promise<unknown> {
     const response = await fetch(`${apiUrl}/v1${path}`, {
       method: body === undefined ? "GET" : "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        // Consumption label for the audit log. The API token still decides access.
+        [ENGINEER_ID_HEADER]: process.env.ENGINEER_ID ?? "engineer-a",
+      },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(3000),
     });

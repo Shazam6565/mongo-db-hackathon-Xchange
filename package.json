@@ -12,7 +12,7 @@
     "dev:dashboard": "npm run dev --workspace @team-memory/dashboard",
     "evaluate": "npm run evaluate --workspace @team-memory/evaluator",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test apps/api/src/*.test.ts packages/contracts/src/*.test.ts",
+    "test": "tsx --test apps/api/src/*.test.ts apps/evaluator/src/*.test.ts packages/contracts/src/*.test.ts",
     "build": "npm run typecheck && npm run build --workspace @team-memory/dashboard",
     "check": "npm run test && npm run build"
   },

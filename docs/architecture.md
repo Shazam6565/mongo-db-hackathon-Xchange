@@ -94,8 +94,17 @@ required-check coverage, and regressions. A negative-control case must stop an o
 from sending every duplicate UI bug to the event team. A single good result is a demo, not proof
 of general reliability; grow the suite and repeat trials before wider rollout.
 
-The repository contains fixed synthetic fixtures and an evaluator interface only. It does not
-have computed scores, automatic publication, trained models, or a completed isolation mechanism.
+`apps/evaluator` scores a candidate against `evals/triage-suite.json` with no model call.
+Component names come from `appliesTo`. A single component applies only when the ticket text
+signals that component. A broad token, or more than one component, applies the lesson to every
+suite ticket. Required checks are matched from the lesson text and proposed change. Expected
+answers stay in the suite file and are not returned by `/v1/memory`.
+
+The API persists the score, then publishes or rejects in one repository operation when
+`expectedVersion` still matches. `needs-review` leaves the candidate unpublished. Pi records
+the engineer id on memory fetch; the audit event lists the lesson versions in that snapshot.
+Published lesson text is what Pi injects. `proposedChange` is scored here and is not installed
+into the agent. There is no live model trial and no separate evaluator credential yet.
 
 ## Remote use and access
 
@@ -109,4 +118,5 @@ tool authorization. Treat evidence references as claims until the evaluator veri
 
 Two independently identified Pi sessions, one repo, one candidate learned from ticket A, fixed
 positive/negative evaluation cases, one published version, and an improved result on ticket B.
-The candidate-to-published transition is the central missing piece of the skeleton.
+The fixed-suite candidate-to-published transition is implemented. Live model trials, harness
+activation, per-user auth, and cross-machine delivery remain open.

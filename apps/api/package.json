@@ -6,6 +6,7 @@
   "scripts": { "dev": "tsx watch src/server.ts", "start": "tsx src/server.ts" },
   "dependencies": {
     "@team-memory/contracts": "0.1.0",
+    "@team-memory/evaluator": "0.1.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.12.5",
     "mongodb": "^7.6.0"
