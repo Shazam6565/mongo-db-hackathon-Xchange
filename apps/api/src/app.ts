@@ -7,6 +7,7 @@ import {
   CandidateInputSchema, ENGINEER_ID_HEADER, EvaluateRequestSchema, engineerIdFromHeader, type Scope,
 } from "@team-memory/contracts";
 import { EVALUATOR_VERSION, compareLesson, loadSuite } from "@team-memory/evaluator";
+import { HarnessRollbackSchema } from "../../../packages/contracts/src/harness.js";
 import { RepositoryError, type LessonRepository } from "./repository.js";
 import { createTeamAuthentication, type TeamAuthConfig } from "./auth.js";
 
@@ -67,7 +68,8 @@ export function buildApp(options: AppOptions) {
         if (principal.via === "cookie" && !["GET", "HEAD", "OPTIONS"].includes(request.method) && !teamAuth.sameOrigin(request)) {
           return reply.code(403).send({ error: "State-changing requests must originate from this application." });
         }
-        const evaluatorOnly = request.method === "POST" && request.routeOptions.url === "/v1/lessons/:id/evaluate";
+        // Publishing and rolling back both change what every agent loads.
+        const evaluatorOnly = request.method === "POST" && ["/v1/lessons/:id/evaluate", "/v1/harness/rollback"].includes(request.routeOptions.url ?? "");
         if (!teamAuth.permits(principal, request.method, evaluatorOnly)) return reply.code(403).send({ error: "This team credential does not permit that operation." });
         request.headers[ENGINEER_ID_HEADER] = principal.actorId;
         return;
@@ -107,17 +109,49 @@ export function buildApp(options: AppOptions) {
       events: await options.repository.listAudit(options.scope),
     }));
 
-    api.get("/memory", async (request) => {
-      const lessons = (await options.repository.list(options.scope, "published")).slice(0, 10);
+    // Memory is the active harness version's lessons: a rolled-back lesson stops reaching agents.
+    // Context injection keeps the ten most recent; skill sync loads the whole version.
+    async function loadActive(request: { headers: Record<string, string | string[] | undefined> }, limit: number) {
+      const active = await options.repository.activeHarness(options.scope);
+      const lessons = active.lessons.slice(0, limit);
       const fetchedAt = new Date().toISOString();
-      const engineerId = engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]);
       await options.repository.recordConsumption(
         options.scope,
-        engineerId,
+        engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]),
         lessons.map((lesson) => ({ id: lesson.id, version: lesson.version })),
         fetchedAt,
+        active.version,
       );
-      return { scope: options.scope, lessons, fetchedAt };
+      return { ...active, lessons, fetchedAt };
+    }
+
+    api.get("/memory", async (request) => {
+      const { lessons, fetchedAt, version } = await loadActive(request, 10);
+      return { scope: options.scope, lessons, fetchedAt, harnessVersion: version };
+    });
+
+    api.get("/harness/active", async (request) => {
+      const { version, versionId, lessons, fetchedAt } = await loadActive(request, 100);
+      return { scope: options.scope, version, versionId, lessons, fetchedAt };
+    });
+
+    // Inspection only: references and history, not recorded as consumption.
+    api.get("/harness", async () => {
+      const [active, versions] = await Promise.all([options.repository.activeHarness(options.scope), options.repository.harnessHistory(options.scope)]);
+      return { scope: options.scope, version: active.version, versionId: active.versionId,
+        lessons: active.lessons.map((lesson) => ({ id: lesson.id, version: lesson.version })), versions };
+    });
+
+    api.post("/harness/rollback", async (request, reply) => {
+      const parsed = HarnessRollbackSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ error: "Provide expectedVersion and lessonId.", issues: parsed.error.issues });
+      try {
+        const actorId = engineerIdFromHeader(request.headers[ENGINEER_ID_HEADER]);
+        return await options.repository.rollbackLesson(options.scope, parsed.data.expectedVersion, parsed.data.lessonId, actorId);
+      } catch (error) {
+        if (sendRepositoryError(error, reply)) return;
+        throw error;
+      }
     });
 
     api.post("/lessons", async (request, reply) => {
