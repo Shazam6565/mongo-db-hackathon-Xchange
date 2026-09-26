@@ -23,42 +23,34 @@ The repo owns the portable plugin, 14 typed tools, stdio bundle and authenticate
 ## Work on the hosted workspace
 
 The team shares one hosted backend: **<https://mongo-db-hackathon-xchange.vercel.app>**.
-It owns the Atlas data, so nothing has to run on your machine. You need `npm` only to change
-this repository's code.
+It owns the Atlas data, so nothing has to run on your machine and you do not need `npm`.
 
-1. **Save your credential.** Ask the workspace owner for your own `credential.env` (never
-   share one). Save it as `~/.team-memory/credential.env`, then run
-   `chmod 600 ~/.team-memory/credential.env`. The Pi extension and the team skills read it
-   from there and use the hosted URL by default.
-2. **Browser.** Open the URL. You can view everything; to make changes, choose **Sign in**
-   and paste your token. On a Mac, this copies it without showing it:
+1. **Get your own `credential.env`** from the workspace owner, for example by AirDrop.
+   Never use someone else's: everything you do is recorded under its name.
+2. **Connect Claude Code with one command.** It moves the file from Downloads to
+   `~/.team-memory/credential.env`, where the team tools look for it, and adds the hosted
+   MCP server:
+
+   ```bash
+   mkdir -p ~/.team-memory && mv ~/Downloads/credential.env ~/.team-memory/ && chmod 600 ~/.team-memory/credential.env && claude mcp add --transport http --scope user xchange https://mongo-db-hackathon-xchange.vercel.app/mcp --header "Authorization: Bearer $(grep '^TEAM_API_TOKEN=' ~/.team-memory/credential.env | cut -d= -f2-)" && claude mcp list | grep xchange
+   ```
+
+   It should end with `xchange: … ✔ Connected`, which also proves your token works. Then
+   start a new Claude Code session: its `xchange_access` tool shows your name and role.
+   If you received the file as text, copy it and replace `mv ~/Downloads/credential.env ~/.team-memory/`
+   with `pbpaste > ~/.team-memory/credential.env`.
+3. **Browser.** Open the URL; anyone can view. To make changes, choose **Sign in** and paste
+   your token. This copies it without showing it:
    `grep '^TEAM_API_TOKEN=' ~/.team-memory/credential.env | cut -d= -f2- | tr -d '\n' | pbcopy`
-3. **Connect your agent.** Each setup runs once.
-   - Claude Code, with nothing to install:
 
-     ```bash
-     claude mcp add --transport http --scope user xchange https://mongo-db-hackathon-xchange.vercel.app/mcp --header "Authorization: Bearer $(grep '^TEAM_API_TOKEN=' ~/.team-memory/credential.env | cut -d= -f2-)"
-     ```
+Other agents read the same file:
 
-   - Codex, with nothing to install. Register the server, then start Codex with your token
-     in its environment:
-
-     ```bash
-     codex mcp add xchange --url https://mongo-db-hackathon-xchange.vercel.app/mcp --bearer-token-env-var TEAM_API_TOKEN
-     ```
-
-     ```bash
-     (set -a; . ~/.team-memory/credential.env; codex)
-     ```
-
-   - Pi: in a checkout, run `npm ci` once, then `pi install ./packages/pi-extension`. See the
-     [Pi extension guide](packages/pi-extension/README.md).
-   - Any other agent or script: `node skills/team-memory/scripts/client.mjs access` from a
-     checkout. It needs only Node 22, with no `npm install`.
-
-4. **Check.** In a new agent session, call the `xchange_access` tool, or run
-   `node skills/team-memory/scripts/client.mjs access`. It must report `mode: "team"`, your
-   own actor name and your role. A 401 means the token is missing or was not accepted.
+- **Codex:** run `codex mcp add xchange --url https://mongo-db-hackathon-xchange.vercel.app/mcp --bearer-token-env-var TEAM_API_TOKEN`
+  once, then start Codex with `(set -a; . ~/.team-memory/credential.env; codex)`.
+- **Pi:** in a checkout, run `npm ci` once, then `pi install ./packages/pi-extension`. See the
+  [Pi extension guide](packages/pi-extension/README.md).
+- **Any agent or script:** `node skills/team-memory/scripts/client.mjs access` from a checkout
+  needs only Node 22. It must report `mode: "team"` with your own name and role.
 
 To work on the dashboard with shared data, run only the frontend against the hosted API:
 `(set -a; . ~/.team-memory/credential.env; TEAM_API_URL=https://mongo-db-hackathon-xchange.vercel.app npm run dev:dashboard)`.

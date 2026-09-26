@@ -87,9 +87,14 @@ checkouts too. Preparation does not activate access or contact MongoDB/Vercel.
 4. Transfer only the intended recipient's token or `credential.env` through your
    approved private secret-sharing channel. Retain grant metadata with the owner;
    keep tokens out of Git, chat, command arguments, screenshots and shared memory.
+   Send each person the file from their own output directory, never your own: its
+   holder acts under that identity and role.
 5. Verify access as below before recording that member as enrolled.
 
 ## Teammate: use the frontend
+
+The quickest setup is one command that saves your file and connects Claude Code; see
+[Work on the hosted workspace](../README.md#work-on-the-hosted-workspace).
 
 Open the canonical app URL; the workspace opens read-only. To make changes, choose
 **Sign in** in the top bar and paste your personal token. Sign-in establishes a

@@ -102,6 +102,23 @@ Hosted access must use team authentication. Local owner mode is only a developme
 option with explicit `XCHANGE_ALLOW_LOCAL_OWNER=1`; the distributed manifest
 does not enable it.
 
+## Connect Claude Code or Codex to the hosted endpoint
+
+The deployment's `/mcp` endpoint serves the same tools with no plugin build or local
+process. It needs only the caller's individual bearer token; the server fixes the
+team/project scope. With the token saved in `~/.team-memory/credential.env`:
+
+```sh
+claude mcp add --transport http --scope user xchange https://mongo-db-hackathon-xchange.vercel.app/mcp --header "Authorization: Bearer $(grep '^TEAM_API_TOKEN=' ~/.team-memory/credential.env | cut -d= -f2-)"
+codex mcp add xchange --url https://mongo-db-hackathon-xchange.vercel.app/mcp --bearer-token-env-var TEAM_API_TOKEN
+```
+
+The token is read from the file instead of being typed. Claude Code stores the header
+in its private user configuration. Codex reads `TEAM_API_TOKEN` from its own environment
+at startup, for example `(set -a; . ~/.team-memory/credential.env; codex)`.
+`claude mcp list` reports `✔ Connected` only when the token is accepted; this was
+verified against the live deployment on 26 September 2026 with a writer agent token.
+
 ## Load in Codex
 
 Add the built plugin directory to an installed local or repository marketplace,
