@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { Scope } from "@team-memory/contracts";
 import { CanvasListSchema, type CanvasRecord } from "../../../../packages/contracts/src/canvas.js";
 import { AppFrame } from "../AppFrame.js";
@@ -81,25 +81,41 @@ function CanvasGallery({ canvases, drafts, loading, error, writable, onOpen, onC
     </div>
     {error && <div className="error-message" role="alert">{error} <button onClick={onRetry}>Retry</button></div>}
     {!canvases && !error && <div className="empty-state" role="status">{loading ? "Loading canvases…" : "No canvases loaded."}</div>}
-    {unsaved.length > 0 && <section className="canvas-section" aria-labelledby="drafts-heading"><h2 id="drafts-heading">Not saved yet</h2><p className="muted">New canvases kept only in this browser. Open one and save it to share it.</p>
+    {unsaved.length > 0 && <Section id="drafts" title="Not saved yet" count={unsaved.length} intro="New canvases kept only in this browser. Open one and save it to share it.">
       <ul className="canvas-cards">{unsaved.map(draft => <li key={draft.id} className="canvas-card is-draft">
-        <a href={canvasHref(draft.id)} onClick={event => onOpen(event, draft.id)}><strong>{draft.draft.title || "Untitled canvas"}</strong><span className="card-text">{draft.draft.description || "No description yet."}</span><Counts canvas={draft.draft} /><span className="card-meta">Kept in this browser · {new Date(draft.keptAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></a>
+        <a href={canvasHref(draft.id)} onClick={event => onOpen(event, draft.id)}><strong>{draft.draft.title || "Untitled canvas"}</strong><span className="card-text">{draft.draft.description || "No description yet."}</span><Counts canvas={draft.draft} /><span className="card-meta">Kept in this browser · {when(draft.keptAt)}</span></a>
         <button className="text-button" onClick={() => onDropDraft(draft.id)} aria-label={`Discard unsaved canvas ${draft.draft.title}`}>Discard</button>
-      </li>)}</ul></section>}
-    {guides.length > 0 && <section className="canvas-section" aria-labelledby="guides-heading"><h2 id="guides-heading">Start here</h2><p className="muted">Guides for people and agents joining this workspace. Read them in order.</p>
-      <ol className="canvas-cards">{guides.map(item => <Card key={item.id} record={item} edited={edited.has(item.id)} onOpen={onOpen} />)}</ol></section>}
-    {canvases && <section className="canvas-section" aria-labelledby="boards-heading"><h2 id="boards-heading">{guides.length ? "Team canvases" : "All canvases"}</h2>
+      </li>)}</ul></Section>}
+    {guides.length > 0 && <Section id="guides" title="Start here" count={guides.length} intro="Guides for people and agents joining this workspace. Read them in order.">
+      <ol className="canvas-cards">{guides.map(item => <Card key={item.id} record={item} edited={edited.has(item.id)} onOpen={onOpen} />)}</ol></Section>}
+    {canvases && <Section id="boards" title={guides.length ? "Team canvases" : "All canvases"} count={boards.length}>
       {boards.length ? <ul className="canvas-cards">{boards.map(item => <Card key={item.id} record={item} edited={edited.has(item.id)} onOpen={onOpen} />)}</ul>
         : <p className="muted">{writable ? "No working canvases yet. Create one to map a ticket, an investigation or a plan." : "No working canvases yet."}</p>}
-    </section>}
+    </Section>}
   </main>;
+}
+const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+// Sections fold; which ones are folded is remembered in this browser.
+const sectionsKey = "team-memory:canvas-sections:v1";
+function foldedSections(): Record<string, boolean> {
+  try { const value: unknown = JSON.parse(localStorage.getItem(sectionsKey) ?? "{}"); return value && typeof value === "object" ? value as Record<string, boolean> : {}; } catch { return {}; }
+}
+function Section({ id, title, count, intro, children }: { id: string; title: string; count: number; intro?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(() => foldedSections()[id] !== false);
+  return <details className="canvas-section" open={open} onToggle={event => {
+    const next = event.currentTarget.open; setOpen(next);
+    try { localStorage.setItem(sectionsKey, JSON.stringify({ ...foldedSections(), [id]: next })); } catch { /* not remembered */ }
+  }}>
+    <summary><h2>{title}</h2><span className="section-count">{count}</span>{intro && <span className="muted section-intro">{intro}</span>}</summary>
+    {children}
+  </details>;
 }
 function Card({ record, edited, onOpen }: { record: CanvasRecord; edited: boolean; onOpen: (event: MouseEvent<HTMLAnchorElement>, id: string) => void }) {
   const canvas = record.canvas;
   return <li className="canvas-card"><a href={canvasHref(record.id)} onClick={event => onOpen(event, record.id)}>
     <span className="card-top">{canvas.kind === "guide" && <span className="guide-badge">Guide{canvas.order ? ` ${canvas.order}` : ""}</span>}{edited && <span className="draft-badge">Unsaved changes</span>}</span>
     <strong>{canvas.title}</strong><span className="card-text">{canvas.description || "No description."}</span><Counts canvas={canvas} />
-    <span className="card-meta">Revision {record.revision} · {record.editorLabel} · {new Date(record.updatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+    <span className="card-meta">Rev {record.revision} · {record.editorLabel} · {when(record.updatedAt)}</span>
   </a></li>;
 }
 function Counts({ canvas }: { canvas: CanvasRecord["canvas"] }) {
