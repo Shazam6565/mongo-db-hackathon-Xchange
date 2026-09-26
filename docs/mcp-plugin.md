@@ -156,6 +156,11 @@ status mutation tool.
 
 ## Connect through Phoenix MCP
 
+Phoenix contains the native `providers.xchange` registration factory and its
+[integration guide](https://github.com/xavugabla/phoenix_mcp/blob/main/integrations/xchange/README.md).
+Use that factory in the existing gateway deployment; this repository also keeps
+the reviewed adapter under `integrations/phoenix/` for reference and distribution.
+
 Use Phoenix's `RemoteMCPProvider` against the deployed Xchange `/mcp` endpoint.
 This is a Streamable HTTP MCP service, not a plugin manifest URL or REST OpenAPI
 document. A remote Phoenix worker cannot use this machine's loopback server;
